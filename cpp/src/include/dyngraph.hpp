@@ -36,8 +36,8 @@ std::ostream &operator<<(std::ostream &os, const edge_info<W> &x) {
 
 template <class WEIGHT> struct neighbor_info {
 
-	WEIGHT weight() const { return edge->weight; }
-	int endpoint() const { return vertex; }
+  WEIGHT weight() const { return edge->weight; }
+  int endpoint() const { return vertex; }
 
   int vertex;
 
@@ -87,50 +87,45 @@ public:
   WEIGHT node_weight;
   // total edge weight
   WEIGHT edge_weight;
-	
-	bool directed;
-	
-	
-  typename std::vector<std::vector<neighbor_info<WEIGHT>>>::iterator begin()
-	{
-		return begin(neighbors);
-	}
-  typename std::vector<std::vector<neighbor_info<WEIGHT>>>::reverse_iterator rbegin()
-	{
-		return rbegin(neighbors);
-	}
 
-  typename std::vector<std::vector<neighbor_info<WEIGHT>>>::iterator end()
-	{
-		return end(neighbors);
-	}
-  typename std::vector<std::vector<neighbor_info<WEIGHT>>>::reverse_iterator rend()
-	{
-		return rend(neighbors);
-	}
-	
-	std::vector<neighbor_info<WEIGHT>>& operator[](const int v) 
-	{
-		return neighbors[v];
-	}
-	
+  bool directed;
+
+  typename std::vector<std::vector<neighbor_info<WEIGHT>>>::iterator begin() {
+    return begin(neighbors);
+  }
+  typename std::vector<std::vector<neighbor_info<WEIGHT>>>::reverse_iterator
+  rbegin() {
+    return rbegin(neighbors);
+  }
+
+  typename std::vector<std::vector<neighbor_info<WEIGHT>>>::iterator end() {
+    return end(neighbors);
+  }
+  typename std::vector<std::vector<neighbor_info<WEIGHT>>>::reverse_iterator
+  rend() {
+    return rend(neighbors);
+  }
+
+  std::vector<neighbor_info<WEIGHT>> &operator[](const int v) {
+    return neighbors[v];
+  }
 
   dyngraph() {}
-  dyngraph(const int n, const bool d=true)
+  dyngraph(const int n, const bool d = true)
   // : weight(n,0), neighbor_weight(n,0)
   {
-    initialise(n,d);
-  }
-	
-	template <class graph_struct>
-  dyngraph(const graph_struct &g, const bool r=false)
-  // : weight(n,0), neighbor_weight(n,0)
-  {
-    deep_copy(g,r);
+    initialise(n, d);
   }
 
-  void initialise(const int n, const bool d=true)  {
-		directed = d;
+  template <class graph_struct>
+  dyngraph(const graph_struct &g, const bool r = false)
+  // : weight(n,0), neighbor_weight(n,0)
+  {
+    deep_copy(g, r);
+  }
+
+  void initialise(const int n, const bool d = true) {
+    directed = d;
     weight.resize(n, 0);
     neighbor_weight.resize(n, 0);
 
@@ -153,7 +148,8 @@ public:
 
   void undo_rem() { add_node(nodes[nodes.size()]); }
 
-  template <class graph_struct> void deep_copy(const graph_struct &g, const bool reverse) {
+  template <class graph_struct>
+  void deep_copy(const graph_struct &g, const bool reverse) {
     weight = g.weight;
     neighbor_weight.resize(g.capacity());
     nodes.reserve(g.capacity());
@@ -172,14 +168,14 @@ public:
 
     for (auto u : g.nodes)
       for (auto n : g.neighbors[u])
-				if (directed) {
-					if( reverse )
-						add_directed_edge(n.vertex, u, n.weight());
-					else
-						add_directed_edge(u, n.vertex, n.weight());
-       	} else if (n.vertex > u) {
+        if (directed) {
+          if (reverse)
+            add_directed_edge(n.vertex, u, n.weight());
+          else
+            add_directed_edge(u, n.vertex, n.weight());
+        } else if (n.vertex > u) {
           add_undirected_edge(u, n.vertex, n.weight());
-				} 
+        }
 
 #ifdef _VERIFY_MCGRAPH
     verify("after copy");
@@ -274,16 +270,16 @@ public:
     verify("after rem node");
 #endif
   }
-	
-	void add_edge(const int a, const int b, const WEIGHT w) {
-		if(directed)
-			add_directed_edge(a,b,w);
-		else if(a<b)
-			add_undirected_edge(a,b,w);
-		else
-			add_undirected_edge(b,a,w);
-	}
-	
+
+  void add_edge(const int a, const int b, const WEIGHT w) {
+    if (directed)
+      add_directed_edge(a, b, w);
+    else if (a < b)
+      add_undirected_edge(a, b, w);
+    else
+      add_undirected_edge(b, a, w);
+  }
+
   // edge addition/removal
   void add_directed_edge(const int a, const int b, const WEIGHT w) {
 

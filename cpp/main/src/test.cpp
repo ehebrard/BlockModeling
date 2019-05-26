@@ -60,7 +60,10 @@ int main(int argc, char *argv[]) {
   std::cout << q << std::endl;
 
   block_model m(g);
-  m.compress();
+  m.compress(options);
+	
+  if (options.printsolution)
+    std::cout << m.model << std::endl;
 
   // g.rem_node(13);
   // g.rem_node(3);

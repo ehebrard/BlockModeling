@@ -27,8 +27,8 @@ double cpuTime(void) {
 int main(int argc, char *argv[]) {
 
   auto options = parse(argc, argv);
-	
-	options.describe(std::cout);
+
+  options.describe(std::cout);
 
   random_generator.seed(options.seed);
 
@@ -36,31 +36,36 @@ int main(int argc, char *argv[]) {
 
   double start_time{cpuTime()};
 
-  dimacs::read_graph(
-      options.instance_file, [&](int nv, int ne) { g.initialise(nv); g.edges.reserve(ne); },
-      [&](int u, wtype w) { g.add_node(u - 1, w); },
-      [&](int u, int v, wtype w=1) {
-        if (u != v)
-          g.add_edge(u - 1, v - 1, w);
-      });
-
+  dimacs::read_graph(options.instance_file,
+                     [&](int nv, int ne) {
+                       g.initialise(nv);
+                       g.edges.reserve(ne);
+                     },
+                     [&](int u, wtype w) { g.add_node(u - 1, w); },
+                     [&](int u, int v, wtype w = 1) {
+                       if (u != v)
+                         g.add_edge(u - 1, v - 1, w);
+                     });
 
   double read_time{cpuTime()};
 
-	if(options.printgraph)
-		std::cout << g << std::endl;
-	
-	
-	intstack q(g.size());
-	q.add(0);
-	
-	BFS(g,q);
-	
-	std::cout << q << std::endl;
-	
-	
-	compress(g);
+  if (options.printgraph)
+    std::cout << g << std::endl;
 
+  intstack q(g.size());
+  q.add(0);
 
+  BFS(g, q);
 
+  std::cout << q << std::endl;
+
+  block_model m(g);
+  m.compress();
+
+  // g.rem_node(13);
+  // g.rem_node(3);
+  //
+  // std::cout << g << std::endl;
+
+  // compress(g);
 }

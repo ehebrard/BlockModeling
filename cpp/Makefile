@@ -50,11 +50,11 @@ $(OBJ)/%.o:  $(SRC)/%.cpp $(INC)/%.hpp
 	$(CCC) $(CFLAGS) -c $< -o $@ 
 
 # The examples
-$(BIN)/%: $(MOD)/obj/%.o $(PLIBOBJ)
+$(BIN)/%: $(MOD)/obj/%.o $(PLIBOBJ) 
 	@echo 'link '$<
 	$(CCC) $(CFLAGS) $(PLIBOBJ) $< -lm -o $@
 
-$(MOD)/obj/%.o: $(MOD)/src/%.cpp
+$(MOD)/obj/%.o: $(MOD)/src/%.cpp 
 	@echo 'compile '$<
 	$(CCC) $(CFLAGS) -c $< -o $@ 
 

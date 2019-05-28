@@ -52,13 +52,6 @@ int main(int argc, char *argv[]) {
   if (options.printgraph)
     std::cout << g << std::endl;
 
-  intstack q(g.size());
-  q.add(0);
-
-  BFS(g, q);
-
-  std::cout << q << std::endl;
-
   block_model m(g);
   m.compress(options);
 	

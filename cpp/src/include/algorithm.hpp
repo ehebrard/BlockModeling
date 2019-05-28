@@ -17,8 +17,8 @@ void BFS(graph_struct &g, intstack &order, int start = 0) {
 
 // compute the error delta of a move w.r.t. blocks i -> j
 // there are 'mij' edges from i to j and 'deltaij' are added
-float get_error(const int mij, const int psize, const int nsize,
-                const int deltaij) {
+float get_error_delta(const int mij, const int psize, const int nsize,
+                      const int deltaij) {
 
   float delta{0};
 
@@ -67,7 +67,7 @@ public:
       : data(g), model(g), N{g.capacity()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), color(N), block_size(N, 1) {
+        prior_bwd_edge(N), color(N), block_size(N, 1), bitsize(N) {
 
     for (auto i{0}; i < N; ++i)
       color[i] = i;
@@ -78,8 +78,12 @@ public:
   float get_cost(const int v, const int t);
   void move(const int v, const int t);
 
+  float epsilon{1e-3};
+
   graph_struct &data;
   graph_struct model;
+
+  float get_objective();
 
 private:
   size_t N;
@@ -100,7 +104,104 @@ private:
 
   std::vector<int> new_fwd_edges;
   std::vector<int> new_bwd_edges;
+
+  // for the brute-force thing
+  std::vector<float> bitsize;
+
+  std::vector<int> util;
+
+  void check();
 };
+
+template <class graph_struct> void block_model<graph_struct>::check() {
+  auto n{data.capacity()};
+  auto m{model.size()};
+
+  // check block_size
+  util.clear();
+  util.resize(n, 0);
+  for (auto v : data.nodes) {
+    ++util[color[v]];
+  }
+  for (auto u : model.nodes) {
+    assert(block_size[u] == util[u]);
+  }
+
+  // check edge count
+  auto total{0};
+  util.clear();
+  util.resize(m * m, 0);
+  for (auto u : data.nodes) {
+    auto i{model.nodes.index(color[u])};
+
+    for (auto e : data[u]) {
+      auto j{model.nodes.index(color[e.endpoint()])};
+      ++util[i * m + j];
+    }
+  }
+  for (auto u : model.nodes) {
+    auto i{model.nodes.index(color[u])};
+    for (auto e : model[u]) {
+      auto j{model.nodes.index(color[e.endpoint()])};
+
+      if (e.weight() != util[i * m + j]) {
+        std::cout << "problem with " << model.nodes[i] << "," << model.nodes[j]
+                  << "(" << e.weight() << "/" << util[i * m + j] << "):\n"
+                  << model << std::endl
+                  << "   ";
+        for (int ii = 0; ii < m; ++ii)
+          std::cout << std::setw(3) << model.nodes[ii];
+        std::cout << std::endl;
+        for (int ii = 0; ii < m; ++ii) {
+          std::cout << std::setw(3) << model.nodes[ii];
+          for (int jj = 0; jj < m; ++jj) {
+            std::cout << std::setw(3) << util[ii * m + jj];
+          }
+          std::cout << std::endl;
+        }
+        exit(1);
+      }
+      assert(e.weight() == util[i * m + j]);
+      total += e.weight();
+    }
+  }
+
+  assert(total == data.num_edges);
+}
+
+template <class graph_struct> float block_model<graph_struct>::get_objective() {
+  float nbits{0};
+  for (auto u : model.nodes) {
+    // std::fill(begin(bitsize), end(bitsize), 0);
+
+    // model size
+    for (auto v : model.nodes) {
+
+      assert((block_size[u] * block_size[v]) > 0);
+
+      nbits += std::log2(static_cast<float>(block_size[u] * block_size[v] + 1));
+    }
+
+    // error size
+    for (auto e : model[u]) {
+      auto v{e.vertex};
+      auto nedge{e.weight()};
+      auto size{block_size[u] * block_size[v]};
+
+      if (nedge == 0 or nedge == size)
+        continue;
+
+      float fnedge{static_cast<float>(nedge)};
+      float fsize{static_cast<float>(size)};
+      float density{fnedge / fsize};
+
+      nbits += size * ((density - 1) * std::log2(1 - density) -
+                       density * std::log2(density));
+    }
+  }
+
+  return nbits;
+}
 
 template <class graph_struct>
 float block_model<graph_struct>::get_cost(const int v, const int t) {
@@ -253,20 +354,20 @@ float block_model<graph_struct>::get_cost(const int v, const int t) {
     ijdelta -= std::log2(static_cast<float>(psizet + 1));
 
     // error on j -> t
-    ijdelta +=
-        get_error(target_bwd_edgecount[j], psizet, nsizet, bwd_neighbors[j]);
+    ijdelta += get_error_delta(target_bwd_edgecount[j], psizet, nsizet,
+                               bwd_neighbors[j]);
 
-    // error on t -> j
-    ijdelta +=
-        get_error(target_fwd_edgecount[j], psizet, nsizet, fwd_neighbors[j]);
+    // error_delta on t -> j
+    ijdelta += get_error_delta(target_fwd_edgecount[j], psizet, nsizet,
+                               fwd_neighbors[j]);
 
-    // error on j -> o
-    ijdelta +=
-        get_error(origin_bwd_edgecount[j], psizeo, nsizeo, -bwd_neighbors[j]);
+    // error_delta on j -> o
+    ijdelta += get_error_delta(origin_bwd_edgecount[j], psizeo, nsizeo,
+                               -bwd_neighbors[j]);
 
-    // error on o -> j
-    ijdelta +=
-        get_error(origin_fwd_edgecount[j], psizeo, nsizeo, -fwd_neighbors[j]);
+    // error_delta on o -> j
+    ijdelta += get_error_delta(origin_fwd_edgecount[j], psizeo, nsizeo,
+                               -fwd_neighbors[j]);
 
     delta += ijdelta;
 
@@ -279,6 +380,7 @@ float block_model<graph_struct>::get_cost(const int v, const int t) {
 
 template <class graph_struct>
 void block_model<graph_struct>::move(const int v, const int t) {
+
   assert(new_bwd_edges.size() == 0);
   assert(new_fwd_edges.size() == 0);
 
@@ -323,10 +425,43 @@ void block_model<graph_struct>::move(const int v, const int t) {
     //   }
     // }
 
+    // if (j == 5 or j == 3) {
+    //   std::cout << j << " -- "
+    //             << "bwd: " << target_bwd_edgecount[j] << "+" <<
+    //             bwd_neighbors[j]
+    //             << ", fwd:" << target_fwd_edgecount[j] << "+"
+    //             << fwd_neighbors[j] << std::endl;
+    //   std::cout << j << " -- "
+    //             << "bwd: " << origin_bwd_edgecount[j] << "+" <<
+    //             bwd_neighbors[j]
+    //             << ", fwd:" << origin_fwd_edgecount[j] << "+"
+    //             << fwd_neighbors[j] << std::endl;
+    // }
+
     target_bwd_edgecount[j] += bwd_neighbors[j];
     target_fwd_edgecount[j] += fwd_neighbors[j];
+    if (j == t) {
+      // when adding a node to a bag t, add both its forward and backward edges
+      // in the mix
+      target_bwd_edgecount[j] += fwd_neighbors[j];
+      target_fwd_edgecount[j] += bwd_neighbors[j];
+      origin_bwd_edgecount[j] += fwd_neighbors[o];
+      origin_fwd_edgecount[j] += bwd_neighbors[o];
+    }
+
     origin_bwd_edgecount[j] -= bwd_neighbors[j];
     origin_fwd_edgecount[j] -= fwd_neighbors[j];
+    if (j == o) {
+      // when removing a node from a bag o, remove both its forward and backward
+      // edges from the mix
+      origin_bwd_edgecount[j] -= fwd_neighbors[j];
+      origin_fwd_edgecount[j] -= bwd_neighbors[j];
+      target_bwd_edgecount[o] -= fwd_neighbors[t];
+      target_fwd_edgecount[o] -= bwd_neighbors[t];
+    }
+
+    // std::cout << "bwd: " << target_bwd_edgecount[3] << ", fwd:" <<
+    // target_fwd_edgecount[3] << std::endl;
   }
 
   while (new_bwd_edges.size() > 0) {
@@ -354,6 +489,14 @@ void block_model<graph_struct>::move(const int v, const int t) {
 		
   }
 
+  for (auto e : model.successors[t])
+    if (target_fwd_edgecount[e.endpoint()] != e.weight())
+      model.set_weight(t, e.endpoint(), e, target_fwd_edgecount[e.endpoint()]);
+
+  for (auto e : model.predecessors[t])
+    if (target_bwd_edgecount[e.endpoint()] != e.weight())
+      model.set_weight(e.endpoint(), t, e, target_bwd_edgecount[e.endpoint()]);
+
   if (block_size[o] == 0) {
 
     // std::cout << "  - remove " << o << std::endl;
@@ -367,20 +510,21 @@ void block_model<graph_struct>::move(const int v, const int t) {
       if (origin_bwd_edgecount[e.endpoint()] != e.weight())
         model.set_weight(e.endpoint(), o, e, origin_bwd_edgecount[e.endpoint()]);
   }
-
-  for (auto e : model.successors[t])
-    if (target_fwd_edgecount[e.endpoint()] != e.weight())
-      model.set_weight(t, e.endpoint(), e, target_fwd_edgecount[e.endpoint()]);
-
-  for (auto e : model.predecessors[t])
-    if (target_bwd_edgecount[e.endpoint()] != e.weight())
-      model.set_weight(e.endpoint(), t, e, target_bwd_edgecount[e.endpoint()]);
 }
 
 template <class graph_struct> void block_model<graph_struct>::compress(options& opt) {
 
   intstack movable(data.capacity());
   movable.fill();
+
+  auto nbits{get_objective()};
+  auto incr_nbits{nbits};
+
+  std::cout << nbits << " / " << (model.size() * model.size()) << std::endl;
+  //
+  // exit(1);
+
+  auto prev{-1};
 
   while (true) {
     bool moved;
@@ -389,23 +533,51 @@ template <class graph_struct> void block_model<graph_struct>::compress(options& 
     for (auto v : movable) {
 
       moved = false;
-      for (auto t : model.nodes)
-        if (color[v] != t) {
+      for (auto t : model.nodes) {
+        auto o{color[v]};
+        if (o != t) {
 
           float delta{get_cost(v, t)};
 
-          if (delta < 0) {
-						
-						if(opt.verbosity > 0)
-		            std::cout << "move " << v << ": " << color[v] << " -> " << t << " ("
-		                      << delta << ")" << std::endl;
+          // std::cout << delta << std::endl;
+
+          if (delta < -epsilon) {
+
+            incr_nbits += delta;
+            if (opt.checked) {
+              check();
+              nbits = get_objective();
+            }
+
+            // std::cout << model << std::endl;
 
             move(v, t);
             movable.remove(t);
             moved = true;
+
+            if (opt.verbosity > 0)
+              std::cout << std::setw(4) << model.size() << " " << std::setw(4)
+                        << model.num_edges << " "
+                        << "move " << v << ": " << o << " -> " << t << " ("
+                        << delta;
+
+            if (opt.checked)
+              std::cout << "/" << (nbits - incr_nbits);
+
+            std::cout << ")" << std::endl;
+
+            std::cout << nbits << " / " << incr_nbits
+                      << std::endl;
+
+            if (prev == o * t)
+              exit(1);
+            else
+              prev = o * t;
+
             break;
           }
         }
+      }
 
       if (moved)
         break;

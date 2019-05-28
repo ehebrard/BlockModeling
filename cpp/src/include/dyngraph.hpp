@@ -6,7 +6,7 @@
 
 #include "intstack.hpp"
 
-#define _VERIFY_MCGRAPH 1
+// #define _VERIFY_MCGRAPH 1
 
 namespace block
 {
@@ -241,22 +241,12 @@ public:
     verify("before rem node");
 #endif
 
-    if (x == 21)
-      std::cout << *this << std::endl;
-
     assert(nodes.contain(x));
-    // std::cout << "rem " << x << " (" << weight[x] << ") from " << node_weight
-    // << "\n" << *this ;
 
     nodes.remove(x);
 
-    // std::cout << num_edges << " - " << outdegree(x) << " - " << indegree(x)
-    //           << " = ";
-
     num_edges -= outdegree(x);
     num_edges -= indegree(x);
-
-    // std::cout << num_edges << "\n";
 
     node_weight -= weight[x];
     edge_weight -= successors_weight[x];
@@ -459,7 +449,7 @@ template<class WEIGHT>
 void dyngraph<WEIGHT>::verify(const char* msg)
 {
 
-  // std::cout << *this << std::endl;
+  std::cout << *this << std::endl;
 
   auto count{num_edges};
   std::vector<int> f(nodes.capacity(), 0);

@@ -24,8 +24,9 @@ struct options {
 				
 		bool printgraph;
 		bool printsolution;
+                bool checked;
 
-    int seed;
+                int seed;
 };
 
 struct argbase {
@@ -114,6 +115,9 @@ options parse(int argc, char* argv[])
   cmd.add<SwitchArg>(opt.printsolution, "", "printsolution",
                      "display the solution", false);
 
+  cmd.add<SwitchArg>(opt.checked, "", "checked",
+                     "check the real objective at each move", false);
+
   cmd.parse(argc, argv);
   return opt;
 }
@@ -125,6 +129,7 @@ void options::describe(std::ostream& os)
   os << "[options] instance file = " << instance_file << "\n";
   os << "[options] verbosity = " << verbosity << "\n";
   os << "[options] random seed = " << seed << "\n";
+  os << "[options] checked = " << (checked ? "yes" : "no") << "\n";
   os << std::endl;
 }
 

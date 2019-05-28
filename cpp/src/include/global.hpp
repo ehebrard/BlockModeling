@@ -19,7 +19,7 @@ static bool print_debug{false};
     code                                                                       \
   }
 
-typedef float wtype;
+typedef int wtype;
 auto max_weight{std::numeric_limits<wtype>::max()};
 auto min_weight{std::numeric_limits<wtype>::min()};
 

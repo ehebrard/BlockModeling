@@ -75,7 +75,7 @@ public:
 
   void compress(options& opt);
 
-  float get_cost(const int v, const int t);
+  float get_cost(options &opt, const int v, const int t);
   void move(const int v, const int t);
 
   float epsilon{1e-3};
@@ -110,10 +110,20 @@ private:
 
   std::vector<int> util;
 
-  void check();
+  void check(float nbits, float incr_nbits);
+  std::vector<std::vector<float>> block_bits;
+  std::vector<std::vector<float>> error_bits;
+  std::vector<std::vector<float>> bldlt_bits;
+  std::vector<std::vector<float>> erdlt_bits;
+  std::vector<std::vector<float>> iblck_bits;
+  std::vector<std::vector<float>> ierrr_bits;
 };
 
-template <class graph_struct> void block_model<graph_struct>::check() {
+template <class graph_struct>
+void block_model<graph_struct>::check(float nbits, float incr_nbits) {
+
+  // std::cout << "CHECK STRUCT\n";
+
   auto n{data.capacity()};
   auto m{model.size()};
 
@@ -166,20 +176,144 @@ template <class graph_struct> void block_model<graph_struct>::check() {
     }
   }
 
+  // std::cout << "CHECK BF/INCR\n";
+	
+	
+	// auto N{model.capacity()};
+
+  // int ok{(std::abs(nbits - incr_nbits) <= 1e-3 ? 0 : N*N)};
+
+	auto ok{std::abs(nbits - incr_nbits) <= 1e-3};
+
+  if (!ok) {
+    std::cout << "global problem: " << nbits << " / " << incr_nbits
+              << std::endl;
+    // exit(1);
+  }
+
+	int ierr{-1};
+	int jerr{-1};
+	int terr{-1};
+
+  float cibits{0}, cnbits{0};
+  for (int i = 0; i < data.capacity(); ++i) {
+    for (int j = 0; j < data.capacity(); ++j) {
+      iblck_bits[i][j] += bldlt_bits[i][j];
+      ierrr_bits[i][j] += erdlt_bits[i][j];
+      cibits += iblck_bits[i][j];
+      cibits += ierrr_bits[i][j];
+      cnbits += block_bits[i][j];
+      cnbits += error_bits[i][j];
+      if (std::abs(block_bits[i][j] - iblck_bits[i][j]) > 1e-3) {
+				ierr = i; jerr = j; terr = 0;
+        ok = false;
+      }
+      if (std::abs(error_bits[i][j] - ierrr_bits[i][j]) > 1e-3) {
+				ierr = i; jerr = j; terr = 1;
+        ok = false;
+      }
+    }
+  }
+
+  if (std::abs(nbits - cnbits) > 1e-3) {
+    std::cout << "BF count: " << cnbits << " / " << nbits << std::endl;
+  }
+
+  if (std::abs(incr_nbits - cibits) > 1e-3) {
+    std::cout << "INCR count: " << cibits << " / " << incr_nbits << std::endl;
+  }
+
+  if (!ok) {
+    std::cout << "\nDELTA MODEL SIZE:\n";
+    for (int i = 0; i < data.capacity(); ++i) {
+      for (int j = 0; j < data.capacity(); ++j) {
+        std::cout << std::setw(5) << std::setprecision(2) << bldlt_bits[i][j]
+                  << " ";
+      }
+      std::cout << std::endl;
+    }
+    std::cout << "\nINCR MODEL SIZE:\n";
+    for (int i = 0; i < data.capacity(); ++i) {
+      for (int j = 0; j < data.capacity(); ++j) {
+        std::cout << std::setw(5) << std::setprecision(2) << iblck_bits[i][j]
+                  << " ";
+      }
+      std::cout << std::endl;
+    }
+    std::cout << "\nREAL MODEL SIZE:\n";
+    for (int i = 0; i < data.capacity(); ++i) {
+      for (int j = 0; j < data.capacity(); ++j) {
+        std::cout << std::setw(5) << std::setprecision(2) << block_bits[i][j]
+                  << " ";
+      }
+      std::cout << std::endl;
+    }
+
+    std::cout << "\nDELTA ERROR SIZE:\n";
+    for (int i = 0; i < data.capacity(); ++i) {
+      for (int j = 0; j < data.capacity(); ++j) {
+        std::cout << std::setw(5) << std::setprecision(2) << erdlt_bits[i][j]
+                  << " ";
+      }
+      std::cout << std::endl;
+    }
+    std::cout << "\nINCR ERROR SIZE:\n";
+    for (int i = 0; i < data.capacity(); ++i) {
+      for (int j = 0; j < data.capacity(); ++j) {
+        std::cout << std::setw(5) << std::setprecision(2) << ierrr_bits[i][j]
+                  << " ";
+      }
+      std::cout << std::endl;
+    }
+    std::cout << "\nREAL ERROR SIZE:\n";
+    for (int i = 0; i < data.capacity(); ++i) {
+      for (int j = 0; j < data.capacity(); ++j) {
+        std::cout << std::setw(5) << std::setprecision(2) << error_bits[i][j]
+                  << " ";
+      }
+      std::cout << std::endl;
+    }
+
+	// if (!ok) {
+		
+		std::cout << (terr ? "error" : "block") << " bits discrepancy on " << ierr << "," << jerr << std::endl;
+		
+    exit(1);
+  }
+
   assert(total == data.num_edges);
 }
 
 template <class graph_struct> float block_model<graph_struct>::get_objective() {
   float nbits{0};
+
+  std::cout << "BRUTE FORCE\n";
+  // std::cout << "    ";
+  // for (auto u : model.nodes) {
+  //   std::cout << std::setw(5) << u << " ";
+  //   // std::fill(begin(_bits))
+  // }
+
+  for (int i = 0; i < model.capacity(); ++i) {
+    std::fill(begin(block_bits[i]), end(block_bits[i]), 0);
+    std::fill(begin(error_bits[i]), end(error_bits[i]), 0);
+  }
+
   for (auto u : model.nodes) {
     // std::fill(begin(bitsize), end(bitsize), 0);
+    // std::cout << std::setw(3) << u << " ";
 
     // model size
     for (auto v : model.nodes) {
 
       assert((block_size[u] * block_size[v]) > 0);
 
-      nbits += std::log2(static_cast<float>(block_size[u] * block_size[v] + 1));
+      auto block_sz{
+          std::log2(static_cast<float>(block_size[u] * block_size[v] + 1))};
+
+      nbits += block_sz;
+
+      block_bits[u][v] = block_sz;
     }
 
     // error size
@@ -195,16 +329,36 @@ template <class graph_struct> float block_model<graph_struct>::get_objective() {
       float fsize{static_cast<float>(size)};
       float density{fnedge / fsize};
 
-      nbits += size * ((density - 1) * std::log2(1 - density) -
-                       density * std::log2(density));
+      auto error_sz{size * ((density - 1) * std::log2(1 - density) -
+                            density * std::log2(density))};
+      nbits += error_sz;
+
+      error_bits[u][v] += error_sz;
     }
+
+    // for (auto v : model.nodes) {
+    //   std::cout << std::setw(5) << std::setprecision(2)
+    //             << (error_bits[u][v] - block_bits[u][v] - bldlt_bits[u][v])
+    //             << " ";
+    // }
+    // std::cout << std::endl;
   }
 
   return nbits;
 }
 
 template <class graph_struct>
-float block_model<graph_struct>::get_cost(const int v, const int t) {
+float block_model<graph_struct>::get_cost(options &opt, const int v,
+                                          const int t) {
+
+  // std::cout << "COMPUTE DELTA\n";
+
+  if (opt.checked) {
+    for (int i = 0; i < data.capacity(); ++i) {
+      std::fill(begin(bldlt_bits[i]), end(bldlt_bits[i]), 0);
+      std::fill(begin(erdlt_bits[i]), end(erdlt_bits[i]), 0);
+    }
+  }
 
   float delta{0}, ijdelta{0};
 
@@ -325,6 +479,10 @@ float block_model<graph_struct>::get_cost(const int v, const int t) {
   // }
   // std::cout << std::endl << "     ";
 
+	assert(target_bwd_edgecount[o] == origin_fwd_edgecount[t]);
+	assert(target_fwd_edgecount[o] == origin_bwd_edgecount[t]);
+
+
   // update the densities
   for (auto j : model.nodes) {
 
@@ -344,30 +502,147 @@ float block_model<graph_struct>::get_cost(const int v, const int t) {
       nsizeo = (block_size[o] - 1) * (block_size[t] + 1);
     }
 
-    ijdelta = 0.0;
+    auto ojdelta = 0.0;
     if (nsizeo > 0)
-      ijdelta += std::log2(static_cast<float>(nsizeo + 1));
-    ijdelta -= std::log2(static_cast<float>(psizeo + 1));
+      ojdelta += std::log2(static_cast<float>(nsizeo + 1));
+    ojdelta -= std::log2(static_cast<float>(psizeo + 1));
+    if (j != o and j != t)
+      ojdelta *= 2;
 
+    auto tjdelta = 0.0;
     if (nsizet > 0)
-      ijdelta += std::log2(static_cast<float>(nsizet + 1));
-    ijdelta -= std::log2(static_cast<float>(psizet + 1));
+      tjdelta += std::log2(static_cast<float>(nsizet + 1));
+    tjdelta -= std::log2(static_cast<float>(psizet + 1));
+    if (j != o and j != t)
+      tjdelta *= 2;
 
-    // error on j -> t
-    ijdelta += get_error_delta(target_bwd_edgecount[j], psizet, nsizet,
-                               bwd_neighbors[j]);
+    ijdelta = (ojdelta + tjdelta);
 
-    // error_delta on t -> j
-    ijdelta += get_error_delta(target_fwd_edgecount[j], psizet, nsizet,
-                               fwd_neighbors[j]);
+    float err;
 
-    // error_delta on j -> o
-    ijdelta += get_error_delta(origin_bwd_edgecount[j], psizeo, nsizeo,
-                               -bwd_neighbors[j]);
+    if (opt.checked) {
+      err = std::log2(static_cast<float>(nsizeo + 1)) -
+            std::log2(static_cast<float>(psizeo + 1));
+      bldlt_bits[j][o] += err;
+      if (j != o and j != t)
+        bldlt_bits[o][j] += err;
 
-    // error_delta on o -> j
-    ijdelta += get_error_delta(origin_fwd_edgecount[j], psizeo, nsizeo,
-                               -fwd_neighbors[j]);
+      err = std::log2(static_cast<float>(nsizet + 1)) -
+            std::log2(static_cast<float>(psizet + 1));
+      bldlt_bits[j][t] += err;
+      if (j != o and j != t)
+        bldlt_bits[t][j] += err;
+    }
+
+    // if (j == o) {
+    //   std::cout << "delta of removing " << v << " from bag " << o
+    //             << " that has " << fwd_neighbors[j] << " fwd neighbors, and "
+    //             << bwd_neighbors[j] << " bwd neighbors out of "
+    //             << origin_bwd_edgecount[j] << ". old size of the bag was "
+    //             << psizeo << ", new size is " << nsizeo << std::endl;
+    //
+    //   std::cout << "delta of adding " << v << " to bag " << t
+    //             << " that has " << fwd_neighbors[j] << " fwd neighbors, and "
+    //             << bwd_neighbors[j] << " bwd neighbors out of "
+    //             << origin_bwd_edgecount[j] << " in " << o << ". old size of the bag was "
+    //             << psizet << ", new size is " << nsizet << std::endl;
+    // }
+		
+
+    if (j == t) {
+
+      assert(target_bwd_edgecount[j] == target_fwd_edgecount[j]);
+			
+
+      // error on t -> t
+      err =
+          get_error_delta(target_bwd_edgecount[t] // + target_fwd_edgecount[j]
+                          ,
+                          psizet, nsizet, bwd_neighbors[t] + fwd_neighbors[t]);
+      ijdelta += err;
+      if (opt.checked)
+        erdlt_bits[t][t] += err;
+			
+			// error on t -> o
+			
+			err = get_error_delta(origin_bwd_edgecount[t], psizeo, nsizeo, fwd_neighbors[o] - bwd_neighbors[t]);
+      ijdelta += err;
+      if (opt.checked)
+        erdlt_bits[t][o] += err;
+			
+			
+		} else if (j == o) {
+
+      assert(origin_bwd_edgecount[o] == origin_fwd_edgecount[o]);
+
+      // error_delta on o -> o
+      err =
+          get_error_delta(origin_bwd_edgecount[o] //+ origin_fwd_edgecount[j]
+                          ,
+                          psizeo, nsizeo, -bwd_neighbors[o] - fwd_neighbors[o]);
+      ijdelta += err;
+      if (opt.checked)
+        erdlt_bits[o][o] += err;
+
+      // if (j == o) {
+      // 	std::cout << "delta[" << o << "][" << j << "]" << err << std::endl;
+      // }
+			
+			
+			// error on o -> t
+			err = get_error_delta(target_bwd_edgecount[o], psizet, nsizet, bwd_neighbors[o] - fwd_neighbors[t]);
+      ijdelta += err;
+      if (opt.checked)
+        erdlt_bits[o][t] += err;
+			
+
+    } else {
+
+      // error on j -> t
+      err = get_error_delta(target_bwd_edgecount[j], psizet, nsizet,
+                            bwd_neighbors[j]);
+      ijdelta += err;
+      if (opt.checked)
+        erdlt_bits[j][t] += err;
+			
+      // if (j == o) {
+      // 	std::cout << "(t) delta[" << o << "][" << t << "]" << err << std::endl;
+      // }
+
+      // error_delta on t -> j
+      err = get_error_delta(target_fwd_edgecount[j], psizet, nsizet,
+                            fwd_neighbors[j]);
+      ijdelta += err;
+      if (opt.checked)
+        erdlt_bits[t][j] += err;
+			
+      // if (j == o) {
+      // 	std::cout << "(t) delta[" << t << "][" << o << "]" << err << std::endl;
+      // }
+
+
+      // error_delta on j -> o
+      err = get_error_delta(origin_bwd_edgecount[j], psizeo, nsizeo,
+                            -bwd_neighbors[j]);
+      ijdelta += err;
+      if (opt.checked)
+        erdlt_bits[j][o] += err;
+
+      // if (j == t) {
+      // 	std::cout << "(o) delta[" << t << "][" << o << "]" << err << std::endl;
+      // }
+
+      // error_delta on o -> j
+      err = get_error_delta(origin_fwd_edgecount[j], psizeo, nsizeo,
+                            -fwd_neighbors[j]);
+      ijdelta += err;
+      if (opt.checked)
+        erdlt_bits[o][j] += err;
+
+      // if (j == t) {
+      // 	std::cout << "(o) delta[" << o << "][" << t << "]" << err << std::endl;
+      // }
+    }
 
     delta += ijdelta;
 
@@ -513,14 +788,33 @@ void block_model<graph_struct>::move(const int v, const int t) {
 }
 
 template <class graph_struct> void block_model<graph_struct>::compress(options& opt) {
+  if (opt.checked) {
+    block_bits.resize(data.capacity());
+    error_bits.resize(data.capacity());
+    iblck_bits.resize(data.capacity());
+    ierrr_bits.resize(data.capacity());
+    bldlt_bits.resize(data.capacity());
+    erdlt_bits.resize(data.capacity());
+    for (auto i = 0; i < data.capacity(); ++i) {
+      block_bits[i].resize(data.capacity(), 1);
+      error_bits[i].resize(data.capacity(), 0);
+      bldlt_bits[i].resize(data.capacity(), 0);
+      erdlt_bits[i].resize(data.capacity(), 0);
+      iblck_bits[i].resize(data.capacity(), 1);
+      ierrr_bits[i].resize(data.capacity(), 0);
+    }
+  }
 
   intstack movable(data.capacity());
   movable.fill();
 
-  auto nbits{get_objective()};
+  float nbits{0};
+	if (opt.checked) {
+			nbits = get_objective();
+			std::cout << nbits << " / " << (model.size() * model.size()) << std::endl;
+		}
   auto incr_nbits{nbits};
 
-  std::cout << nbits << " / " << (model.size() * model.size()) << std::endl;
   //
   // exit(1);
 
@@ -537,23 +831,29 @@ template <class graph_struct> void block_model<graph_struct>::compress(options& 
         auto o{color[v]};
         if (o != t) {
 
-          float delta{get_cost(v, t)};
+          float delta{get_cost(opt, v, t)};
 
           // std::cout << delta << std::endl;
 
           if (delta < -epsilon) {
 
             incr_nbits += delta;
-            if (opt.checked) {
-              check();
-              nbits = get_objective();
-            }
+            // if (opt.checked) {
+            //   check();
+            //   nbits = get_objective();
+            // }
 
             // std::cout << model << std::endl;
 
             move(v, t);
             movable.remove(t);
             moved = true;
+
+            float pnbits{nbits};
+            if (opt.checked) {
+              nbits = get_objective();
+              // check();
+            }
 
             if (opt.verbosity > 0)
               std::cout << std::setw(4) << model.size() << " " << std::setw(4)
@@ -562,17 +862,22 @@ template <class graph_struct> void block_model<graph_struct>::compress(options& 
                         << delta;
 
             if (opt.checked)
-              std::cout << "/" << (nbits - incr_nbits);
+              std::cout << "/" << (nbits - pnbits);
 
             std::cout << ")" << std::endl;
 
-            std::cout << nbits << " / " << incr_nbits
-                      << std::endl;
+            // std::cout << nbits << " / " << incr_nbits
+            //           << std::endl;
 
-            if (prev == o * t)
-              exit(1);
-            else
-              prev = o * t;
+            if (opt.checked) {
+              // nbits = get_objective();
+              check(nbits, incr_nbits);
+            }
+
+            // if (prev == o * t)
+            //   exit(1);
+            // else
+            //   prev = o * t;
 
             break;
           }

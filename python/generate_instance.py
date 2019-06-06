@@ -74,7 +74,7 @@ def main():
     model = BlockModel(len(nodes))
     g = model.random_graph(nodes)
     block_opt = [e for i in range(K) for e in [i] * nodes[i]]
-    opt_length = bit_length(g, block_opt)
+    opt_length = 0 #bit_length(g, block_opt)
 
     with open(args.output, "w") as f:
         f.write("c blocks %s\n" % (','.join([str(e) for e in nodes])))

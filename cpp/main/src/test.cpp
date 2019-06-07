@@ -54,9 +54,17 @@ int main(int argc, char *argv[]) {
 
   block_model m(g);
   m.compress(options);
-	
-  if (options.printsolution)
-    std::cout << m.model << std::endl;
+
+  if (options.printsolution) {
+    // std::cout << m.model << std::endl;
+    std::vector<std::vector<int>> blocks;
+    m.get_blocks(blocks);
+    for (auto &b : blocks) {
+      for (auto x : b)
+        std::cout << " " << x;
+      std::cout << std::endl;
+    }
+  }
 
   // g.rem_node(13);
   // g.rem_node(3);

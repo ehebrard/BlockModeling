@@ -6,7 +6,7 @@
 
 #include "intstack.hpp"
 
-#define _VERIFY_MCGRAPH 1
+// #define _VERIFY_MCGRAPH 1
 
 namespace block
 {

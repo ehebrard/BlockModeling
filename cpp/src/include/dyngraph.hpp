@@ -78,6 +78,9 @@ public:
   // the list of predecessors of each node
   std::vector<std::vector<neighbor_info<WEIGHT>>> predecessors;
 
+  // whether the vertex has a loop
+  std::vector<int> loop;
+
   // the weights on the nodes
   std::vector<WEIGHT> weight;
   // the total weight of the successors
@@ -128,6 +131,8 @@ public:
 
     successors.resize(n);
     predecessors.resize(n);
+
+    // loop.resize(n,0);
 
     successors_weight.resize(n, 0);
     predecessors_weight.resize(n, 0);
@@ -212,7 +217,7 @@ public:
     assert(!nodes.contain(x));
 
     nodes.add(x);
-    num_edges += indegree(x);
+    // num_edges += indegree(x);
     num_edges += outdegree(x);
 
     node_weight += weight[x];
@@ -229,6 +234,8 @@ public:
       y.set_target_rank(successors[y.vertex].size());
       successors[y.vertex].push_back(neighbor_info<WEIGHT>(x, y.edge));
       predecessors_weight[y.vertex] -= y.weight();
+      if (y.vertex != x)
+        ++num_edges;
     }
 
 #ifdef _VERIFY_MCGRAPH
@@ -246,7 +253,7 @@ public:
     nodes.remove(x);
 
     num_edges -= outdegree(x);
-    num_edges -= indegree(x);
+    // num_edges -= indegree(x);
 
     node_weight -= weight[x];
     edge_weight -= successors_weight[x];
@@ -280,6 +287,9 @@ public:
         successors[y.vertex][rx] = z;
         z.set_target_rank(rx);
       }
+
+      if (y.vertex != x)
+        --num_edges;
     }
 
 // std::cout << " -> " <<  node_weight << std::endl;
@@ -498,7 +508,7 @@ void dyngraph<WEIGHT>::verify(const char* msg)
   }
 
   if (count) {
-    std::cout << msg << " (1):" << num_edges << " / " << (num_edges / 2 - count)
+    std::cout << msg << " (1):" << num_edges << " / " << (num_edges - count)
               << std::endl;
     exit(1);
   }

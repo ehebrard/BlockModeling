@@ -90,7 +90,7 @@ private:
   // for the brute-force thing
   std::vector<float> bitsize;
   std::vector<int> util;
-  float err_epsilon{.1};
+  float err_epsilon{.5};
   void check(float nbits, float incr_nbits);
   std::vector<std::vector<float>> block_bits;
   std::vector<std::vector<float>> error_bits;
@@ -397,7 +397,11 @@ void block_model<graph_struct>::move(const int v, const int t) {
   }
 }
 
-template <class graph_struct> void block_model<graph_struct>::compress(options& opt) {
+template <class graph_struct>
+void block_model<graph_struct>::compress(options &opt) {
+
+  epsilon = opt.epsilon;
+
   if (opt.checked) {
     block_bits.resize(data.capacity());
     error_bits.resize(data.capacity());
@@ -427,8 +431,13 @@ template <class graph_struct> void block_model<graph_struct>::compress(options& 
 
   auto prev{-1};
 
+  float delta, update;
+
   while (true) {
     bool moved;
+    auto move_vertex{-1};
+    auto move_target{-1};
+		update = -epsilon;
 
     // try to find a move of negative cost
     for (auto v : movable) {
@@ -437,36 +446,15 @@ template <class graph_struct> void block_model<graph_struct>::compress(options& 
       for (auto t : model.nodes) {
         auto o{color[v]};
         if (o != t) {
+          delta = get_cost(opt, v, t);
 
-          float delta{get_cost(opt, v, t)};
-
-          if (delta < -epsilon) {
-
-            incr_nbits += delta;
-
-            if (opt.verbosity > 0)
-              std::cout << std::setw(4) << model.size() << " " << std::setw(4)
-                        << model.num_edges << " "
-                        << "move " << v << ": " << o << " -> " << t << " ("
-                        << delta;
-
-            move(v, t);
-            movable.remove(t);
+          if (delta < update) {
+            move_vertex = v;
+            move_target = t;
+            update = delta;
             moved = true;
-
-            if (opt.checked) {
-              float pnbits{nbits};
-              nbits = get_objective();
-              std::cout << "/" << (nbits - pnbits);
-            }
-
-            if (opt.verbosity > 0)
-              std::cout << ")" << std::endl;
-
-            if (opt.checked)
-              check(nbits, incr_nbits);
-
-            break;
+            if (opt.policy == block::options::FIRST)
+              break;
           }
         }
       }
@@ -475,8 +463,33 @@ template <class graph_struct> void block_model<graph_struct>::compress(options& 
         break;
     }
 
-    if (!moved)
+    if (move_vertex < 0)
       break;
+    else {
+			if (opt.policy == block::options::BEST)
+				update = get_cost(opt, move_vertex, move_target);
+			
+      incr_nbits += update;
+      if (opt.verbosity > 0)
+        std::cout << std::setw(4) << model.size() << " " << std::setw(4)
+                  << model.num_edges << " "
+                  << "move " << move_vertex << ": " << color[move_vertex]
+                  << " -> " << move_target << " (" << update;
+
+      move(move_vertex, move_target);
+      if (opt.stable)
+        movable.remove(move_target);
+
+      if (opt.checked) {
+        float pnbits{nbits};
+        nbits = get_objective();
+        std::cout << "/" << (nbits - pnbits);
+      }
+      if (opt.verbosity > 0)
+        std::cout << ")" << std::endl;
+      if (opt.checked)
+        check(nbits, incr_nbits);
+    }
   }
 }
 
@@ -511,13 +524,14 @@ void block_model<graph_struct>::check(float nbits, float incr_nbits) {
     }
   }
   for (auto u : model.nodes) {
-    auto i{model.nodes.index(color[u])};
+    auto i{model.nodes.index(u)};
     for (auto e : model[u]) {
-      auto j{model.nodes.index(color[e.endpoint()])};
+      auto j{model.nodes.index(e.endpoint())};
 
       if (e.weight() != util[i * m + j]) {
-        std::cout << "problem with " << model.nodes[i] << "," << model.nodes[j]
-                  << "(" << e.weight() << "/" << util[i * m + j] << "):\n"
+        std::cout << "problem with " << u << "," << e.endpoint() << " = "
+                  << model.nodes[i] << "," << model.nodes[j] << " ("
+                  << e.weight() << "/" << util[i * m + j] << "):\n"
                   << model << std::endl
                   << "   ";
         for (int ii = 0; ii < m; ++ii)

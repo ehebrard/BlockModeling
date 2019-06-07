@@ -10,23 +10,29 @@
 
 namespace block
 {
-	
+
 struct options {
-    // outputs a nice description of all options
-    void describe(std::ostream&);
+  // outputs a nice description of all options
+  void describe(std::ostream &);
 
-    // the actual options
-    std::string cmdline; // for reference
-    std::string instance_file;
-		
-    enum verbosity { SILENT = 0, QUIET, NORMAL, YACKING };
-    int verbosity;
-				
-		bool printgraph;
-		bool printsolution;
-                bool checked;
+  // the actual options
+  std::string cmdline; // for reference
+  std::string instance_file;
 
-                int seed;
+  enum verbosity { SILENT = 0, QUIET, NORMAL, YACKING };
+  int verbosity;
+
+  enum policy { FIRST = 0, BEST };
+  int policy;
+
+  bool printgraph;
+  bool printsolution;
+  bool checked;
+  bool stable;
+
+  int seed;
+
+  float epsilon;
 };
 
 struct argbase {
@@ -106,6 +112,9 @@ options parse(int argc, char* argv[])
       "verbosity level (0:silent,1:quiet,2:improvements only,3:verbose", false,
       2, "int");
 
+  cmd.add<ValueArg<int>>(opt.policy, "", "policy",
+                         "policy (0:first improving,1:best", false, 0, "int");
+
   cmd.add<ValueArg<int>>(opt.seed, "", "seed", "random seed", false, 12345,
                          "int");
 
@@ -117,6 +126,13 @@ options parse(int argc, char* argv[])
 
   cmd.add<SwitchArg>(opt.checked, "", "checked",
                      "check the real objective at each move", false);
+
+  cmd.add<SwitchArg>(opt.stable, "", "stable",
+                     "do not move the representative of a non-singleton bag",
+                     false);
+
+  cmd.add<ValueArg<float>>(opt.epsilon, "", "epsilon", "minimum gain", false,
+                           1e-3, "float");
 
   cmd.parse(argc, argv);
   return opt;

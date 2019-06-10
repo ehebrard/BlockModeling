@@ -5,11 +5,10 @@
 #include <unistd.h>
 
 // #include "intstack.hpp"
-#include "global.hpp"
-#include "reader.hpp"
-#include "options.hpp"
 #include "algorithm.hpp"
-
+#include "global.hpp"
+#include "options.hpp"
+#include "reader.hpp"
 
 using namespace std;
 using namespace block;
@@ -22,13 +21,12 @@ double cpuTime(void) {
   return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000;
 }
 
-// typedef options<WEIGHT> params;
-
 int main(int argc, char *argv[]) {
 
   auto options = parse(argc, argv);
 
-  options.describe(std::cout);
+  if (options.verbosity >= options::QUIET)
+    options.describe(std::cout);
 
   random_generator.seed(options.seed);
 
@@ -53,10 +51,9 @@ int main(int argc, char *argv[]) {
     std::cout << g << std::endl;
 
   block_model m(g);
-  m.compress(options);
+  m.compress(options, random_generator);
 
   if (options.printsolution) {
-    // std::cout << m.model << std::endl;
     std::vector<std::vector<int>> blocks;
     m.get_blocks(blocks);
     for (auto &b : blocks) {
@@ -65,11 +62,4 @@ int main(int argc, char *argv[]) {
       std::cout << std::endl;
     }
   }
-
-  // g.rem_node(13);
-  // g.rem_node(3);
-  //
-  // std::cout << g << std::endl;
-
-  // compress(g);
 }

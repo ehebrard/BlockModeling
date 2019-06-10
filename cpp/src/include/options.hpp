@@ -22,17 +22,22 @@ struct options {
   enum verbosity { SILENT = 0, QUIET, NORMAL, YACKING };
   int verbosity;
 
-  enum policy { FIRST = 0, BEST };
+  enum policy { BEST = 0, FIRST };
   int policy;
 
   bool printgraph;
   bool printsolution;
-  bool checked;
   bool stable;
 
   int seed;
 
+	float check_epsilon;
   float epsilon;
+  float alpha;
+  float beta;
+
+  bool randomized() { return seed > 0; }
+  bool checked() { return check_epsilon > 0; }
 };
 
 struct argbase {
@@ -113,10 +118,9 @@ options parse(int argc, char* argv[])
       2, "int");
 
   cmd.add<ValueArg<int>>(opt.policy, "", "policy",
-                         "policy (0:first improving,1:best", false, 0, "int");
+                         "policy (0:best,1:first improving", false, 0, "int");
 
-  cmd.add<ValueArg<int>>(opt.seed, "", "seed", "random seed", false, 12345,
-                         "int");
+  cmd.add<ValueArg<int>>(opt.seed, "", "seed", "random seed", false, 0, "int");
 
   cmd.add<SwitchArg>(opt.printgraph, "", "printgraph", "display the graph",
                      false);
@@ -124,8 +128,11 @@ options parse(int argc, char* argv[])
   cmd.add<SwitchArg>(opt.printsolution, "", "printsolution",
                      "display the solution", false);
 
-  cmd.add<SwitchArg>(opt.checked, "", "checked",
-                     "check the real objective at each move", false);
+  cmd.add<ValueArg<float>>(opt.check_epsilon, "", "checked",
+                           "check w.r.t. brute force (acceptable error)", false,
+                           0.0, "float");
+  // cmd.add<SwitchArg>(opt.checked, "", "checked",
+  //                    "check the real objective at each move", false);
 
   cmd.add<SwitchArg>(opt.stable, "", "stable",
                      "do not move the representative of a non-singleton bag",
@@ -133,6 +140,12 @@ options parse(int argc, char* argv[])
 
   cmd.add<ValueArg<float>>(opt.epsilon, "", "epsilon", "minimum gain", false,
                            1e-3, "float");
+
+  cmd.add<ValueArg<float>>(opt.alpha, "", "alpha", "model weight", false, 1.0,
+                           "float");
+
+  cmd.add<ValueArg<float>>(opt.beta, "", "beta", "error weight", false, 1.0,
+                           "float");
 
   cmd.parse(argc, argv);
   return opt;
@@ -143,9 +156,27 @@ void options::describe(std::ostream& os)
   os << "[options] block modelling\n";
   os << "[options] cmdline = " << cmdline << "\n";
   os << "[options] instance file = " << instance_file << "\n";
-  os << "[options] verbosity = " << verbosity << "\n";
-  os << "[options] random seed = " << seed << "\n";
-  os << "[options] checked = " << (checked ? "yes" : "no") << "\n";
+  os << "[options] verbosity = "
+     << (verbosity == SILENT
+             ? "silent"
+             : (verbosity == QUIET
+                    ? "quiet"
+                    : (verbosity == NORMAL ? "normal" : "yacking")))
+     << "\n";
+  os << "[options] policy = "
+     << (policy == policy::FIRST ? "first improving move" : "best move")
+     << (stable ? " (stable bags)" : "") << "\n";
+  os << "[options] minimum gain = " << epsilon << "\n";
+  os << "[options] ";
+  if (randomized())
+    os << "randomized, seed = " << seed << "\n";
+  else
+    os << "not randomized\n";
+  os << "[options] checked = ";
+  if (checked())
+    os << "yes (" << check_epsilon << ")\n";
+  else
+    os << "no \n";
   os << std::endl;
 }
 

@@ -105,12 +105,21 @@ public:
     void restore(const size_t stamp);
 		
 		void reindex();
-    //@}
+                template <class random_generator>
+                void shuffle(random_generator &rand);
 
-    /*!@name Miscellaneous*/
-    //@{
-    std::ostream& display(std::ostream& os) const;
+                //@}
+
+                /*!@name Miscellaneous*/
+                //@{
+                std::ostream &display(std::ostream &os) const;
 };
+
+template <class random_generator>
+void intstack::shuffle(random_generator &rng) {
+  std::shuffle(std::begin(list_), std::end(list_), rng);
+  reindex();
+}
 
 std::ostream& operator<<(std::ostream& os, const intstack& x);
 

@@ -66,7 +66,7 @@ public:
   graph_struct &data;
   graph_struct model;
 
-  float get_objective(const float A, const float B);
+  float get_objective(); // const float A, const float B);
 
 private:
   size_t N;
@@ -114,8 +114,8 @@ template <class graph_struct>
 float block_model<graph_struct>::get_cost(options &opt, const int v,
                                           const int t) {
 
-  float A{opt.alpha};
-  float B{opt.beta};
+  // float A{opt.alpha};
+  // float B{opt.beta};
 
   if (opt.checked()) {
     for (int i = 0; i < data.capacity(); ++i) {
@@ -175,7 +175,7 @@ float block_model<graph_struct>::get_cost(options &opt, const int v,
     ojdelta += std::log2(
         static_cast<float>((block_size[o] - 1) * (block_size[o] - 1) + 1));
   ojdelta -= std::log2(static_cast<float>(block_size[o] * block_size[o] + 1));
-  ojdelta *= A;
+  // ojdelta *= A;
   if (opt.checked())
     bldlt_bits[o][o] += ojdelta;
 
@@ -184,7 +184,7 @@ float block_model<graph_struct>::get_cost(options &opt, const int v,
   tjdelta += std::log2(
       static_cast<float>((block_size[t] + 1) * (block_size[t] + 1) + 1));
   tjdelta -= std::log2(static_cast<float>(block_size[t] * block_size[t] + 1));
-  tjdelta *= A;
+  // tjdelta *= A;
   if (opt.checked())
     bldlt_bits[t][t] += tjdelta;
 
@@ -193,7 +193,7 @@ float block_model<graph_struct>::get_cost(options &opt, const int v,
     ijdelta += std::log2(
         static_cast<float>((block_size[o] - 1) * (block_size[t] + 1) + 1));
   ijdelta -= std::log2(static_cast<float>(block_size[o] * block_size[t] + 1));
-  ijdelta *= A;
+  // ijdelta *= A;
   if (opt.checked()) {
     bldlt_bits[t][o] += ijdelta;
     bldlt_bits[o][t] += ijdelta;
@@ -203,19 +203,19 @@ float block_model<graph_struct>::get_cost(options &opt, const int v,
   ijdelta += (ojdelta + tjdelta);
 
   // error on t -> t
-  err = B * get_error_delta(target_bwd_edgecount[t],
-                            block_size[t] * block_size[t],
-                            (block_size[t] + 1) * (block_size[t] + 1),
-                            bwd_neighbors[t] + fwd_neighbors[t]);
+  err = // B *
+      get_error_delta(target_bwd_edgecount[t], block_size[t] * block_size[t],
+                      (block_size[t] + 1) * (block_size[t] + 1),
+                      bwd_neighbors[t] + fwd_neighbors[t]);
   ijdelta += err;
   if (opt.checked())
     erdlt_bits[t][t] += err;
 
   // error on t -> o
-  err = B * get_error_delta(origin_bwd_edgecount[t],
-                            block_size[t] * block_size[o],
-                            (block_size[t] + 1) * (block_size[o] - 1),
-                            fwd_neighbors[o] - bwd_neighbors[t]);
+  err = // B *
+      get_error_delta(origin_bwd_edgecount[t], block_size[t] * block_size[o],
+                      (block_size[t] + 1) * (block_size[o] - 1),
+                      fwd_neighbors[o] - bwd_neighbors[t]);
   ijdelta += err;
   if (opt.checked())
     erdlt_bits[t][o] += err;
@@ -223,19 +223,19 @@ float block_model<graph_struct>::get_cost(options &opt, const int v,
   assert(origin_bwd_edgecount[o] == origin_fwd_edgecount[o]);
 
   // error_delta on o -> o
-  err = B * get_error_delta(origin_bwd_edgecount[o],
-                            block_size[o] * block_size[o],
-                            (block_size[o] - 1) * (block_size[o] - 1),
-                            -bwd_neighbors[o] - fwd_neighbors[o]);
+  err = // B *
+      get_error_delta(origin_bwd_edgecount[o], block_size[o] * block_size[o],
+                      (block_size[o] - 1) * (block_size[o] - 1),
+                      -bwd_neighbors[o] - fwd_neighbors[o]);
   ijdelta += err;
   if (opt.checked())
     erdlt_bits[o][o] += err;
 
   // error on o -> t
-  err = B * get_error_delta(target_bwd_edgecount[o],
-                            block_size[t] * block_size[o],
-                            (block_size[t] + 1) * (block_size[o] - 1),
-                            bwd_neighbors[o] - fwd_neighbors[t]);
+  err = // B *
+      get_error_delta(target_bwd_edgecount[o], block_size[t] * block_size[o],
+                      (block_size[t] + 1) * (block_size[o] - 1),
+                      bwd_neighbors[o] - fwd_neighbors[t]);
   ijdelta += err;
   if (opt.checked())
     erdlt_bits[o][t] += err;
@@ -440,9 +440,9 @@ void block_model<graph_struct>::compress(options &opt, std::mt19937 &rng) {
 
   float nbits{0};
   if (opt.checked()) {
-    nbits = get_objective(opt.alpha, opt.beta);
-		if (opt.verbosity >= block::options::NORMAL)
-			std::cout << nbits << " / " << (model.size() * model.size()) << std::endl;
+    nbits = get_objective(); // opt.alpha, opt.beta);
+    if (opt.verbosity >= block::options::NORMAL)
+      std::cout << nbits << " / " << (model.size() * model.size()) << std::endl;
   }
   auto incr_nbits{nbits};
 
@@ -499,7 +499,7 @@ void block_model<graph_struct>::compress(options &opt, std::mt19937 &rng) {
 
       if (opt.checked()) {
         float pnbits{nbits};
-        nbits = get_objective(opt.alpha, opt.beta);
+        nbits = get_objective(); // opt.alpha, opt.beta);
         if (opt.verbosity >= block::options::NORMAL)
           std::cout << "/" << (nbits - pnbits);
       }
@@ -674,7 +674,8 @@ void block_model<graph_struct>::check(float nbits, float incr_nbits,
 }
 
 template <class graph_struct>
-float block_model<graph_struct>::get_objective(const float A, const float B) {
+float block_model<graph_struct>::get_objective() { // const float A, const float
+                                                   // B) {
   float nbits{0};
 
   for (int i = 0; i < model.capacity(); ++i) {
@@ -689,7 +690,8 @@ float block_model<graph_struct>::get_objective(const float A, const float B) {
       assert((block_size[u] * block_size[v]) > 0);
 
       auto block_sz{
-          A * std::log2(static_cast<float>(block_size[u] * block_size[v] + 1))};
+          // A *
+          std::log2(static_cast<float>(block_size[u] * block_size[v] + 1))};
 
       nbits += block_sz;
 
@@ -709,8 +711,9 @@ float block_model<graph_struct>::get_objective(const float A, const float B) {
       float fsize{static_cast<float>(size)};
       float density{fnedge / fsize};
 
-      auto error_sz{B * size * ((density - 1) * std::log2(1 - density) -
-                                density * std::log2(density))};
+      auto error_sz{// B *
+                    size * ((density - 1) * std::log2(1 - density) -
+                            density * std::log2(density))};
       nbits += error_sz;
 
       error_bits[u][v] += error_sz;

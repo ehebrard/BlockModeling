@@ -4,9 +4,10 @@
 
 #include <tclap/CmdLine.h>
 
-#include <string>
+#include <fstream>
 #include <iostream>
 #include <numeric>
+#include <string>
 
 namespace block
 {
@@ -26,15 +27,26 @@ struct options {
   int policy;
 
   bool printgraph;
-  bool printsolution;
   bool stable;
 
   int seed;
 
 	float check_epsilon;
   float epsilon;
-  float alpha;
-  float beta;
+  // float alpha;
+  // float beta;
+
+  std::string output;
+
+  std::ofstream *os;
+  std::ostream &outfile() {
+
+    if (output == "stdout")
+      return std::cout;
+    os = new std::ofstream(output.c_str(), std::ios_base::out);
+
+    return *os;
+  }
 
   bool randomized() { return seed > 0; }
   bool checked() { return check_epsilon > 0; }
@@ -110,42 +122,42 @@ options parse(int argc, char* argv[])
       [&](std::string acc, const char *arg) { return acc + " " + arg; });
 
   cmd.add<UnlabeledValueArg<std::string>>(opt.instance_file, "file",
-                                          "instance file", true, "", "string");
+                                          "Instance file in dimacs format", true, "", "string");
 
   cmd.add<ValueArg<int>>(
       opt.verbosity, "", "verbosity",
-      "verbosity level (0:silent,1:quiet,2:improvements only,3:verbose", false,
+      "Verbosity level (0:silent,1:quiet,2:normal,3:verbose", false,
       2, "int");
 
   cmd.add<ValueArg<int>>(opt.policy, "", "policy",
-                         "policy (0:best,1:first improving", false, 0, "int");
+                         "Move selection policy (0:best,1:first improving", false, 0, "int");
 
-  cmd.add<ValueArg<int>>(opt.seed, "", "seed", "random seed", false, 0, "int");
+  cmd.add<ValueArg<int>>(opt.seed, "", "seed", "Set the random seed (default: not randomized)", false, 0, "int");
 
-  cmd.add<SwitchArg>(opt.printgraph, "", "printgraph", "display the graph",
+  cmd.add<SwitchArg>(opt.printgraph, "", "printgraph", "Display the graph",
                      false);
 
-  cmd.add<SwitchArg>(opt.printsolution, "", "printsolution",
-                     "display the solution", false);
+  cmd.add<ValueArg<std::string>>(opt.output, "o", "output",
+                                 "Output file (default stdout)", false,
+                                 "stdout", "string");
 
   cmd.add<ValueArg<float>>(opt.check_epsilon, "", "checked",
-                           "check w.r.t. brute force (acceptable error)", false,
+                           "Check w.r.t. brute force (argument = acceptable error)", false,
                            0.0, "float");
-  // cmd.add<SwitchArg>(opt.checked, "", "checked",
-  //                    "check the real objective at each move", false);
 
   cmd.add<SwitchArg>(opt.stable, "", "stable",
-                     "do not move the representative of a non-singleton bag",
+                     "Do not move the representative of a non-singleton bag",
                      false);
 
-  cmd.add<ValueArg<float>>(opt.epsilon, "", "epsilon", "minimum gain", false,
+  cmd.add<ValueArg<float>>(opt.epsilon, "", "epsilon", "Minimum gain to accept a move", false,
                            1e-3, "float");
 
-  cmd.add<ValueArg<float>>(opt.alpha, "", "alpha", "model weight", false, 1.0,
-                           "float");
-
-  cmd.add<ValueArg<float>>(opt.beta, "", "beta", "error weight", false, 1.0,
-                           "float");
+  // cmd.add<ValueArg<float>>(opt.alpha, "", "alpha", "model weight", false,
+  // 1.0,
+  //                          "float");
+  //
+  // cmd.add<ValueArg<float>>(opt.beta, "", "beta", "error weight", false, 1.0,
+  //                          "float");
 
   cmd.parse(argc, argv);
   return opt;

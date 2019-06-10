@@ -53,13 +53,14 @@ int main(int argc, char *argv[]) {
   block_model m(g);
   m.compress(options, random_generator);
 
-  if (options.printsolution) {
-    std::vector<std::vector<int>> blocks;
-    m.get_blocks(blocks);
-    for (auto &b : blocks) {
-      for (auto x : b)
-        std::cout << " " << x;
-      std::cout << std::endl;
+  // if (options.printsolution) {
+  // std::ostream os(options.outfile());
+  std::ostream &os(options.outfile());
+  std::vector<std::vector<int>> blocks;
+  m.get_blocks(blocks);
+  for (auto &b : blocks) {
+    for (auto x : b)
+      os << " " << x;
+    os << std::endl;
     }
-  }
 }

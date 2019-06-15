@@ -104,21 +104,20 @@ public:
 
     void save(size_t& stamp);
     void restore(const size_t stamp);
-		
-		void reindex();
-                template <class random_generator>
-                void shuffle(random_generator &rand);
 
-                //@}
+    void reindex();
+    template <class random_generator> void shuffle(random_generator &rand);
 
-                /*!@name Miscellaneous*/
-                //@{
-                std::ostream &display(std::ostream &os) const;
+    //@}
+
+    /*!@name Miscellaneous*/
+    //@{
+    std::ostream &display(std::ostream &os) const;
 };
 
 template <class random_generator>
 void intstack::shuffle(random_generator &rng) {
-  std::random_shuffle(std::begin(list_), std::end(list_), rng);
+  std::shuffle(std::begin(list_), std::end(list_), rng);
   reindex();
 }
 

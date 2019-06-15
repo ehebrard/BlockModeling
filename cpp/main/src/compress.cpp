@@ -59,6 +59,8 @@ int main(int argc, char *argv[]) {
 
   std::vector<std::vector<int>> blocks;
 
+  // block_model<dyngraph<wtype>>& m{NULL}; //(g, blocks);
+
   if (options.size > 0) {
     intstack nodes(g.capacity());
     nodes.fill();
@@ -71,12 +73,17 @@ int main(int argc, char *argv[]) {
       nodes.remove(v);
     }
 
-    block_model m(g, blocks);
+    block_model<dyngraph<wtype>> m(g, blocks);
+    // m = warm;
+    // block_model m(g, blocks);
     compress(m, blocks, options);
   } else {
-    block_model m(g);
+    block_model<dyngraph<wtype>> m(g);
+    // m = cold;
     compress(m, blocks, options);
   }
+
+  // compress(m, blocks, options);
 
   std::ostream &os(options.outfile());
   for (auto &b : blocks) {

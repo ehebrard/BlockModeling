@@ -30,8 +30,9 @@ struct options {
   bool stable;
 
   int seed;
+  int size;
 
-	float check_epsilon;
+  float check_epsilon;
   float epsilon;
   // float alpha;
   // float beta;
@@ -133,6 +134,10 @@ options parse(int argc, char* argv[])
                          "Move selection policy (0:best,1:first improving", false, 0, "int");
 
   cmd.add<ValueArg<int>>(opt.seed, "", "seed", "Set the random seed (default: not randomized)", false, 0, "int");
+
+  cmd.add<ValueArg<int>>(opt.size, "", "size",
+                         "Maximum number of blocks (default: no limit)", false,
+                         0, "int");
 
   cmd.add<SwitchArg>(opt.printgraph, "", "printgraph", "Display the graph",
                      false);

@@ -115,7 +115,7 @@ public:
   }
 
   dyngraph() {}
-  dyngraph(const int n) { initialise(n); }
+  // dyngraph(const int n) { initialise(n); }
 
   template <class graph_struct> dyngraph(const graph_struct &g) {
     deep_copy(g);
@@ -243,6 +243,54 @@ public:
 #endif
   }
 
+  void rename(const int x, const int y) {
+
+    verify("before rename");
+
+    std::cout << nodes << std::endl;
+    std::cout << "rename " << x << " -> " << y << std::endl;
+
+    // assert(nodes.contain(x));
+    // assert(!nodes.contain(y));
+
+    // std::swap(successors[x], successors[y]);
+    // std::swap(predecessors[x], predecessors[y]);
+
+    for (auto e : successors[x]) {
+      auto z{e.endpoint()};
+      auto rx{e.get_origin_rank()};
+      auto f{predecessors[z][rx]};
+      assert(f.vertex == x);
+      f.vertex = y;
+    }
+
+    for (auto e : predecessors[x]) {
+      auto z{e.endpoint()};
+      auto rx{e.get_target_rank()};
+      auto f{successors[z][rx]};
+      assert(f.vertex == x);
+      f.vertex = y;
+    }
+
+    for (auto e : successors[y]) {
+      auto z{e.endpoint()};
+      auto ry{e.get_origin_rank()};
+      auto f{predecessors[z][ry]};
+      assert(z == y or f.vertex == y);
+      f.vertex = x;
+    }
+
+    for (auto e : predecessors[y]) {
+      auto z{e.endpoint()};
+      auto ry{e.get_target_rank()};
+      auto f{successors[z][ry]};
+      assert(z == y or f.vertex == y);
+      f.vertex = x;
+    }
+
+    verify("after rename");
+  }
+
   void rem_node(const int x) {
 #ifdef _VERIFY_MCGRAPH
     verify("before rem node");
@@ -354,57 +402,6 @@ public:
 #endif
   }
 
-//   // change the weight on an edge [which is in the successor list of o]
-//   void set_successor_weight(const int o, const neighbor_info<WEIGHT> n, const WEIGHT w) {
-//
-// #ifdef _VERIFY_MCGRAPH
-//     verify("before set succ weight");
-// #endif
-//
-// 		auto t{n.vertex};
-//     auto p{n.weight()};
-//     n.set_weight(w);
-//
-// 		// std::cout << o << "." << t << ": " << p << "->" << w << std::endl;
-//
-//     successors_weight[o] -= p;
-//     predecessors_weight[t] -= p;
-//     successors_weight[o] += w;
-//     predecessors_weight[t] += w;
-//
-//     edge_weight += w;
-//     edge_weight -= p;
-//
-// #ifdef _VERIFY_MCGRAPH
-//     verify("after set succ weight");
-// #endif
-//   }
-//
-//   // change the weight on an edge [which is in the predecessor list of t]
-//   void set_predecessor_weight(const int t, const neighbor_info<WEIGHT> n, const WEIGHT w) {
-//
-// #ifdef _VERIFY_MCGRAPH
-//     verify("before set succ weight");
-// #endif
-//
-// 		auto o{n.vertex};
-//     auto p{n.weight()};
-//     n.set_weight(w);
-//
-// 		// std::cout << o << "." << t << ": " << p << "->" << w << std::endl;
-//
-//     successors_weight[o] -= p;
-//     predecessors_weight[t] -= p;
-//     successors_weight[o] += w;
-//     predecessors_weight[t] += w;
-//
-//     edge_weight += w;
-//     edge_weight -= p;
-//
-// #ifdef _VERIFY_MCGRAPH
-//     verify("after set succ weight");
-// #endif
-//   }
 
   // printing
   std::ostream &describe(std::ostream &os, const int verbosity) const;

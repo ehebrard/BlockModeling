@@ -21,6 +21,13 @@ double cpuTime(void) {
   return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000;
 }
 
+template <class BM>
+void compress(BM &m, std::vector<std::vector<int>> &blocks, options &options) {
+  m.compress(options, random_generator);
+  // std::vector<std::vector<int>> blocks;
+  m.get_blocks(blocks);
+}
+
 int main(int argc, char *argv[]) {
 
   auto options = parse(argc, argv);
@@ -50,14 +57,28 @@ int main(int argc, char *argv[]) {
   if (options.printgraph)
     std::cout << g << std::endl;
 
-  block_model m(g);
-  m.compress(options, random_generator);
-
-  // if (options.printsolution) {
-  // std::ostream os(options.outfile());
-  std::ostream &os(options.outfile());
   std::vector<std::vector<int>> blocks;
-  m.get_blocks(blocks);
+
+  if (options.size > 0) {
+    intstack nodes(g.capacity());
+    nodes.fill();
+    auto k{options.size};
+    auto bi{0};
+    blocks.resize(k);
+    while (!nodes.empty()) {
+      auto v{nodes[random_generator() % nodes.size()]};
+      blocks[bi++ % k].push_back(v);
+      nodes.remove(v);
+    }
+
+    block_model m(g, blocks);
+    compress(m, blocks, options);
+  } else {
+    block_model m(g);
+    compress(m, blocks, options);
+  }
+
+  std::ostream &os(options.outfile());
   for (auto &b : blocks) {
     for (auto x : b)
       os << " " << x;

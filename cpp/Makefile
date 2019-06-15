@@ -1,7 +1,7 @@
 
 MAINDIR = .
 
-COPTIMIZE = -O3 
+COPTIMIZE = -g 
 
 CCC = g++
 
@@ -25,7 +25,7 @@ XLIBAUX = $(XLIBSRC:.cc=.o)
 XLIBOBJ = $(patsubst $(XSRC)/%, $(XOBJ)/%, $(XLIBAUX))
 
 
-CFLAGS = -std=c++17 -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -I$(INC)
+CFLAGS = -std=c++17 -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -I$(INC) -I$(MAINDIR)
 LFLAGS = -L$(OBJ)
 
 

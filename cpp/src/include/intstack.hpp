@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 #ifndef __INTSTACK_HPP
 #define __INTSTACK_HPP
@@ -117,7 +118,7 @@ public:
 
 template <class random_generator>
 void intstack::shuffle(random_generator &rng) {
-  std::shuffle(std::begin(list_), std::end(list_), rng);
+  std::random_shuffle(std::begin(list_), std::end(list_), rng);
   reindex();
 }
 

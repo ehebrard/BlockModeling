@@ -181,7 +181,7 @@ void options::describe(std::ostream& os)
                     : (verbosity == NORMAL ? "normal" : "yacking")))
      << "\n";
   os << "[options] policy = "
-     << (policy == policy::FIRST ? "first improving move" : "best move")
+     << (policy == FIRST ? "first improving move" : "best move")
      << (stable ? " (stable bags)" : "") << "\n";
   os << "[options] minimum gain = " << epsilon << "\n";
   os << "[options] ";

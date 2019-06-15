@@ -62,26 +62,37 @@ public:
         prior_bwd_edge(N), block(N), block_size(N, 0), bitsize(N) {
 
     model.initialise(N);
+		
+		
+		std::cout << model << std::endl;
+		
+		std::cout << 11 << std::endl;
+		
 
-    auto bi{0};
-    for (auto &b : blocks) {
-      std::cout << bi << ": ";
-      block_size[bi] = b.size();
-      for (auto u : b) {
-        std::cout << " " << u;
-        block[u] = bi;
+    // auto bi{0};
+    for (auto b{begin(blocks)}; b!=end(blocks); ++b) {
+      std::cout << (b-begin(blocks)) << ": ";
+      block_size[b-begin(blocks)] = b->size();
+      for (auto u{b->begin()}; u!=b->end(); ++u) {
+        std::cout << " " << *u;
+        block[*u] = (b-begin(blocks));
       }
       std::cout << std::endl;
-      ++bi;
+      // ++bi;
     }
+		
+		std::cout << 22 << std::endl;
+		std::cout << model << std::endl;
 
-    bi = 0;
-    for (auto &b : blocks) {
+		for (auto b{begin(blocks)}; b!=end(blocks); ++b) {
+    // bi = 0;
+    // for (auto &b : blocks) {
       std::fill(begin(fwd_neighbors), end(fwd_neighbors), 0);
       // std::fill(begin(bwd_neighbors), end(bwd_neighbors), 0);
-      for (auto u : b) {
-        std::cout << " " << u << "( ";
-        for (auto e : g.successors[u]) {
+      // for (auto u : b) {
+			for (auto u{b->begin()}; u!=b->end(); ++u) {
+        std::cout << " " << *u << "( ";
+        for (auto e : g.successors[*u]) {
           std::cout << e.endpoint() << ":" << block[e.endpoint()] << " ";
           ++fwd_neighbors[block[e.endpoint()]];
         }
@@ -91,6 +102,7 @@ public:
       }
       std::cout << std::endl;
 
+			auto bi{(b-begin(blocks))};
       for (int bj{0}; bj < N; ++bj) {
         std::cout << " " << fwd_neighbors[bj];
         if (fwd_neighbors[bj] > 0) {
@@ -99,8 +111,10 @@ public:
           model.add_edge(bi, bj, fwd_neighbors[bj]);
         }
       }
-      ++bi;
+      // ++bi;
       std::cout << std::endl;
+			
+			std::cout << model << std::endl;
     }
 
     std::cout << model << std::endl;

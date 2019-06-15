@@ -63,6 +63,8 @@ public:
 
     model.initialise(N);
 
+std::cout << 11 << std::endl;
+
     auto bi{0};
     for (auto &b : blocks) {
       std::cout << bi << ": ";
@@ -74,6 +76,8 @@ public:
       std::cout << std::endl;
       ++bi;
     }
+
+std::cout << 22 << std::endl;
 
     bi = 0;
     for (auto &b : blocks) {

@@ -22,8 +22,8 @@ double cpuTime(void) {
 }
 
 template <class BM>
-void compress(BM &m, std::vector<std::vector<int>> &blocks, options &options) {
-  m.compress(options, random_generator);
+void compress(BM &m, std::vector<std::vector<int>> &blocks) {
+  m.compress(random_generator);
   // std::vector<std::vector<int>> blocks;
   m.get_blocks(blocks);
 }
@@ -73,10 +73,10 @@ int main(int argc, char *argv[]) {
       nodes.remove(v);
     }
 
-    block_model<dyngraph<wtype>> m(g, blocks);
+    block_model<dyngraph<wtype>> m(g, blocks, options);
     // m = warm;
     // block_model m(g, blocks);
-    compress(m, blocks, options);
+    compress(m, blocks);
 		
 		k = m.model.size();
 		std::vector<std::vector<float>> densities(k);
@@ -106,9 +106,9 @@ int main(int argc, char *argv[]) {
 		std::cout << m.model << std::endl;
 		
   } else {
-    block_model<dyngraph<wtype>> m(g);
+    block_model<dyngraph<wtype>> m(g, options);
     // m = cold;
-    compress(m, blocks, options);
+    compress(m, blocks);
   }
 
   // compress(m, blocks, options);

@@ -31,6 +31,7 @@ struct options {
 
   int seed;
   int size;
+  int batch;
 
   float check_epsilon;
   float epsilon;
@@ -138,6 +139,10 @@ options parse(int argc, char* argv[])
   cmd.add<ValueArg<int>>(opt.size, "", "size",
                          "Maximum number of blocks (default: no limit)", false,
                          0, "int");
+
+  cmd.add<ValueArg<int>>(opt.batch, "", "batch",
+                         "Number of moves between each recomputation", false, 1,
+                         "int");
 
   cmd.add<SwitchArg>(opt.printgraph, "", "printgraph", "Display the graph",
                      false);

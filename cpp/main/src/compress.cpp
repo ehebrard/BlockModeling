@@ -55,8 +55,8 @@ int main(int argc, char *argv[]) {
 
   double read_time{cpuTime()};
 
-  if (options.printgraph)
-    std::cout << g << std::endl;
+  // if (options.printgraph)
+  //   std::cout << g << std::endl;
 
   std::vector<std::vector<int>> blocks;
 
@@ -73,44 +73,50 @@ int main(int argc, char *argv[]) {
       blocks[bi++ % k].push_back(v);
       nodes.remove(v);
     }
-
-    block_model<dyngraph<wtype>> m(g, blocks, options);
-    // m = warm;
-    // block_model m(g, blocks);
-    compress(m, blocks);
-		
-		k = m.model.size();
-		std::vector<std::vector<float>> densities(k);
-		for(auto d{begin(densities)}; d!=end(densities); ++d)
-		{
-			d->resize(k, 0);
-		}
-		
-		for(auto u : m.model.nodes) {
-			auto i{m.model.nodes.index(u)};
-			for(auto e : m.model.successors[u]) {
-				auto j{m.model.nodes.index(e.endpoint())};
-				densities[i][j] = static_cast<float>(e.weight()) / static_cast<float>(blocks[i].size() *  blocks[j].size());
-			}
-		}
-		
-		for(auto i{0}; i<k; ++i) {
-			std::cout << std::setw(4) << blocks[i].size() << ":";
-			for(auto j{0}; j<k; ++j) {
-				std::cout << " " << std::setw(7) << std::setprecision(3) << densities[i][j] ;
-			}
-			std::cout << std::endl;
-		}
-		
-
-		
-		std::cout << m.model << std::endl;
-		
   } else {
-    block_model<dyngraph<wtype>> m(g, options);
-    // m = cold;
-    compress(m, blocks);
+    blocks.resize(g.capacity());
+    for (auto v{0}; v < g.capacity(); ++v)
+      blocks[v].push_back(v);
   }
+
+  block_model<dyngraph<wtype>> m(g, blocks, options);
+  // m = warm;
+  // block_model m(g, blocks);
+  compress(m, blocks);
+
+  if (options.printgraph) {
+
+    auto k = m.model.size();
+    std::vector<std::vector<float>> densities(k);
+    for (auto d{begin(densities)}; d != end(densities); ++d)
+      d->resize(k, 0);
+
+    for (auto u : m.model.nodes) {
+      auto i{m.model.nodes.index(u)};
+      for (auto e : m.model.successors[u]) {
+        auto j{m.model.nodes.index(e.endpoint())};
+        densities[i][j] =
+            static_cast<float>(e.weight()) /
+            static_cast<float>(blocks[i].size() * blocks[j].size());
+      }
+    }
+
+    for (auto i{0}; i < k; ++i) {
+      std::cout << std::setw(4) << blocks[i].size() << ":";
+      for (auto j{0}; j < k; ++j) {
+        std::cout << " " << std::setw(7) << std::setprecision(3)
+                  << densities[i][j];
+      }
+      std::cout << std::endl;
+    }
+  }
+  // std::cout << m.model << std::endl;
+
+  // } else {
+  //   block_model<dyngraph<wtype>> m(g, options);
+  //   // m = cold;
+  //   compress(m, blocks);
+  // }
 
   // compress(m, blocks, options);
 

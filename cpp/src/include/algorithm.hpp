@@ -21,9 +21,7 @@ void BFS(graph_struct &g, intstack &order, int start = 0) {
 // compute the error delta of a move w.r.t. blocks i -> j
 // there are 'mij' edges from i to j and 'deltaij' are added
 double get_error_delta(const int mij, const int psize, const int nsize,
-                      const int deltaij) {
-
-										
+                       const int deltaij) {
 
   double delta{0};
 
@@ -33,7 +31,8 @@ double get_error_delta(const int mij, const int psize, const int nsize,
              ((dij - 1.0) * std::log2(1.0 - dij) - dij * std::log2(dij));
 
   if (nsize > 0) {
-    double dpij = static_cast<double>(mij + deltaij) / static_cast<double>(nsize);
+    double dpij =
+        static_cast<double>(mij + deltaij) / static_cast<double>(nsize);
     if (mij + deltaij > 0 and mij + deltaij < nsize) {
       delta += static_cast<double>(nsize) *
                ((dpij - 1.0) * std::log2(1.0 - dpij) - dpij * std::log2(dpij));
@@ -48,13 +47,14 @@ template <class graph_struct> class block_model {
 
 public:
   block_model(graph_struct &g, options &opt)
-      : opt(opt), data(g), model(g), N{g.capacity()}, fwd_neighbors(N), bwd_neighbors(N),
-        origin_fwd_edgecount(N), target_fwd_edgecount(N),
+      : opt(opt), data(g), model(g), N{g.capacity()}, fwd_neighbors(N),
+        bwd_neighbors(N), origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), block(N), block_size(N, 1), best_move_origin(N), best_move_target(N,-1), best_move_delta(N,0), num_cost{0} {
+        prior_bwd_edge(N), block(N), block_size(N, 1), best_move_origin(N),
+        best_move_target(N, -1), best_move_delta(N, 0), num_cost{0} {
 
-		for(int i{0}; i<g.capacity(); ++i)
-			best_move_origin[i]=i;
+    for (int i{0}; i < g.capacity(); ++i)
+      best_move_origin[i] = i;
 
     for (auto u : g.nodes)
       block[u] = u;
@@ -65,27 +65,28 @@ public:
       : opt(opt), data(g), N{blocks.size()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), block(g.capacity()), block_size(N, 0), best_move_origin(g.capacity()), best_move_target(g.capacity(),-1), best_move_delta(g.capacity(),0), num_cost{0} {
+        prior_bwd_edge(N), block(g.capacity()), block_size(N, 0),
+        best_move_origin(g.capacity()), best_move_target(g.capacity(), -1),
+        best_move_delta(g.capacity(), 0), num_cost{0} {
 
     model.initialise(N);
-		
-		for(int i{0}; i<g.capacity(); ++i)
-			best_move_origin[i]=i;
-		
 
-    for (auto b{begin(blocks)}; b!=end(blocks); ++b) {
+    for (int i{0}; i < g.capacity(); ++i)
+      best_move_origin[i] = i;
+
+    for (auto b{begin(blocks)}; b != end(blocks); ++b) {
       // std::cout << (b-begin(blocks)) << ": ";
-      block_size[b-begin(blocks)] = b->size();
-      for (auto u{b->begin()}; u!=b->end(); ++u) {
+      block_size[b - begin(blocks)] = b->size();
+      for (auto u{b->begin()}; u != b->end(); ++u) {
         // std::cout << " " << *u;
-        block[*u] = (b-begin(blocks));
+        block[*u] = (b - begin(blocks));
       }
       // std::cout << std::endl;
     }
 
-		for (auto b{begin(blocks)}; b!=end(blocks); ++b) {
+    for (auto b{begin(blocks)}; b != end(blocks); ++b) {
       std::fill(begin(fwd_neighbors), end(fwd_neighbors), 0);
-			for (auto u{b->begin()}; u!=b->end(); ++u) {
+      for (auto u{b->begin()}; u != b->end(); ++u) {
         // std::cout << " " << *u << "( ";
         for (auto e : g.successors[*u]) {
           // std::cout << e.endpoint() << ":" << block[e.endpoint()] << " ";
@@ -95,7 +96,7 @@ public:
       }
       // std::cout << std::endl;
 
-			auto bi{(b-begin(blocks))};
+      auto bi{(b - begin(blocks))};
       for (int bj{0}; bj < N; ++bj) {
         // std::cout << " " << fwd_neighbors[bj];
         if (fwd_neighbors[bj] > 0) {
@@ -104,8 +105,8 @@ public:
         }
       }
       // std::cout << std::endl;
-			
-			// std::cout << model << std::endl;
+
+      // std::cout << model << std::endl;
     }
 
     // std::cout << model << std::endl;
@@ -114,12 +115,12 @@ public:
   void get_blocks(std::vector<std::vector<int>> &blocks);
 
   void compress_old(std::mt19937 &rng);
-	void compress(std::mt19937 &rng);
+  void compress(std::mt19937 &rng);
 
   double get_cost(const int v, const int t);
   void move(const int v, const int t);
-	
-	options& opt;
+
+  options &opt;
 
   double epsilon{1e-3};
 
@@ -147,15 +148,13 @@ private:
 
   std::vector<int> new_fwd_edges;
   std::vector<int> new_bwd_edges;
-	
-	
-	/********* BEST MOVE STUFF ***********/
-	std::vector<int> best_move_origin;
-	std::vector<int> best_move_target;
-	std::vector<double> best_move_delta;
-	
-	void store_best_move(const int v);
-	
+
+  /********* BEST MOVE STUFF ***********/
+  std::vector<int> best_move_origin;
+  std::vector<int> best_move_target;
+  std::vector<double> best_move_delta;
+
+  void store_best_move(const int v);
 
   /********* VERIFICATION STUFF ***********/
   // for the brute-force thing
@@ -169,10 +168,10 @@ private:
   std::vector<std::vector<double>> erdlt_bits;
   std::vector<std::vector<double>> iblck_bits;
   std::vector<std::vector<double>> ierrr_bits;
-	
-	double init_check_structs();
-	
-	long long int num_cost;
+
+  double init_check_structs();
+
+  long long int num_cost;
 };
 
 template <class graph_struct>
@@ -185,11 +184,9 @@ void block_model<graph_struct>::get_blocks(
 }
 
 template <class graph_struct>
-double block_model<graph_struct>::get_cost(const int v,
-                                          const int t) {
-																						
-																						++num_cost;
-																				
+double block_model<graph_struct>::get_cost(const int v, const int t) {
+
+  ++num_cost;
 
   // double A{opt.alpha};
   // double B{opt.beta};
@@ -492,31 +489,30 @@ void block_model<graph_struct>::move(const int v, const int t) {
 template <class graph_struct>
 void block_model<graph_struct>::store_best_move(const int v) {
 
-	best_move_delta[v] = 0;
-	double delta{0};
-	
-	auto o{block[v]};
-	
+  best_move_delta[v] = 0;
+  double delta{0};
+
+  auto o{block[v]};
+
   for (auto t : model.nodes) {
-    
+
     if (o != t) {
       delta = get_cost(v, t);
 
-			if(opt.verbosity >= options::YACKING)
-	      std::cout << "  probe move " << v << ": " << block[v]
-	                << " -> " << t << " (" << delta;
+      if (opt.verbosity >= options::YACKING)
+        std::cout << "  probe move " << v << ": " << block[v] << " -> " << t
+                  << " (" << delta;
 
-			if (best_move_delta[v] > delta)
-			{
-				best_move_delta[v] = delta;
-				best_move_target[v] = t;
-				
-				if(opt.verbosity >= options::YACKING)
-					std::cout << "*";
-			}
+      if (best_move_delta[v] > delta) {
+        best_move_delta[v] = delta;
+        best_move_target[v] = t;
 
-if(opt.verbosity >= options::YACKING)
-			std::cout << ")\n";
+        if (opt.verbosity >= options::YACKING)
+          std::cout << "*";
+      }
+
+      if (opt.verbosity >= options::YACKING)
+        std::cout << ")\n";
     }
   }
 }
@@ -530,11 +526,11 @@ iblck_bits.resize(N);
 ierrr_bits.resize(N);
 bldlt_bits.resize(N);
 erdlt_bits.resize(N);
-for (auto i = 0; i < N; ++i) {			
+for (auto i = 0; i < N; ++i) {
   block_bits[i].resize(N);
   error_bits[i].resize(N);
-  bldlt_bits[i].resize(N,0);
-  erdlt_bits[i].resize(N,0);
+  bldlt_bits[i].resize(N, 0);
+  erdlt_bits[i].resize(N, 0);
   iblck_bits[i].resize(N);
   ierrr_bits[i].resize(N);
 }
@@ -542,26 +538,24 @@ for (auto i = 0; i < N; ++i) {
 double nbits = get_objective(); // opt.alpha, opt.beta);
 for (auto i = 0; i < N; ++i) {	
 for (auto j = 0; j < N; ++j) {
-	iblck_bits[i][j] = block_bits[i][j];
-		ierrr_bits[i][j] = error_bits[i][j];
-	}	
+  iblck_bits[i][j] = block_bits[i][j];
+  ierrr_bits[i][j] = error_bits[i][j];
+}
 }
 if (opt.verbosity >= block::options::NORMAL)
   std::cout << nbits << " / " << (model.size() * model.size()) << std::endl;
 
 return nbits;
 }
-	
-	
-	
+
 template <class graph_struct>
 void block_model<graph_struct>::compress(std::mt19937 &rng) {
 
   epsilon = opt.epsilon;
 
-	double nbits{get_objective()}, incr_nbits{nbits}, update, delta;
+  double nbits{get_objective()}, incr_nbits{nbits}, update, delta;
   if (opt.checked())
-		incr_nbits = nbits = init_check_structs();
+    incr_nbits = nbits = init_check_structs();
 
   intstack movable(data.capacity());
   movable.fill();
@@ -570,113 +564,118 @@ void block_model<graph_struct>::compress(std::mt19937 &rng) {
     movable.shuffle(rng);
   }
 
-	best_move_origin.clear();
-	auto first{0};
+  best_move_origin.clear();
+  auto first{0};
 
-	double threshold{0};
+  double threshold{0};
 
-
-	while (true) {
+  while (true) {
     auto move_vertex{-1};
     auto move_target{-1};
-		// update = -epsilon;
+    // update = -epsilon;
 
-		// if(best_move_origin.empty())
-		// 	std::cout << "NO STORED MOVES\n";
-		// else
-		if(opt.verbosity >= options::YACKING)
-			std::cout << "PICK NEXT BEST STORED MOVE (AMONG " << best_move_origin.size() << "): ";
+    // if(best_move_origin.empty())
+    // 	std::cout << "NO STORED MOVES\n";
+    // else
+    if (opt.verbosity >= options::YACKING)
+      std::cout << "PICK NEXT BEST STORED MOVE (AMONG "
+                << best_move_origin.size() << "): ";
 
-		// first go through the preferred moves and recompute them until
-		// for(auto v : best_move_origin)
-		while(first<best_move_origin.size()) {
-			auto v{best_move_origin[first]};
-			if(best_move_target[v] != block[v] and model.nodes.contain(best_move_target[v])) {
-				delta = get_cost(v, best_move_target[v]);
-				if(delta < -epsilon)
-					{
-						move_vertex = v;
-						move_target = best_move_target[v];
-						// update = delta;
+    // first go through the preferred moves and recompute them until
+    // for(auto v : best_move_origin)
+    while (first < best_move_origin.size()) {
+      auto v{best_move_origin[first]};
+      if (best_move_target[v] != block[v] and
+          model.nodes.contain(best_move_target[v])) {
+        delta = get_cost(v, best_move_target[v]);
+        if (delta < -epsilon) {
+          move_vertex = v;
+          move_target = best_move_target[v];
+          // update = delta;
 
-						if(opt.verbosity >= options::YACKING)
-							std::cout << move_vertex << " -?> " << move_target << "(" << delta << ")\n" ;
-						break;
-					}
-			}
-			++first;
-		}
+          if (opt.verbosity >= options::YACKING)
+            std::cout << move_vertex << " -?> " << move_target << "(" << delta
+                      << ")\n";
+          break;
+        }
+      }
+      ++first;
+    }
 
-		// if no satisfying move was found, recompute the best move list
-		if(move_vertex < 0) {
+    // if no satisfying move was found, recompute the best move list
+    if (move_vertex < 0) {
 
-			if(opt.verbosity >= options::YACKING)
-				std::cout << "NONE FOUND\n";
+      if (opt.verbosity >= options::YACKING)
+        std::cout << "NONE FOUND\n";
 
+      best_move_origin.clear();
+      for (auto v : movable) {
 
-			best_move_origin.clear();
-			for(auto v : movable) {
+        store_best_move(v);
 
-				store_best_move(v);
+        if (opt.verbosity >= options::YACKING)
+          std::cout << " - STORE BEST MOVE FOR " << v << ": "
+                    << best_move_delta[v] << std::endl;
 
-				if(opt.verbosity >= options::YACKING)
-					std::cout << " - STORE BEST MOVE FOR " << v << ": " << best_move_delta[v] << std::endl;
+        if (best_move_delta[v] < -epsilon)
+          best_move_origin.push_back(v);
+      }
 
-				if(best_move_delta[v] < -epsilon)
-					best_move_origin.push_back(v);
-			}
+      if (best_move_origin.empty())
+        break;
 
-			if(best_move_origin.empty())
-				break;
+      std::sort(begin(best_move_origin), end(best_move_origin),
+                [&](const int x, const int y) {
+                  return (best_move_delta[x] < best_move_delta[y]);
+                });
 
-			std::sort(begin(best_move_origin), end(best_move_origin), [&](const int x, const int y) { return (best_move_delta[x] < best_move_delta[y]); });
+      if (opt.verbosity >= options::YACKING)
+        std::cout << "SORT:\n";
 
-			if(opt.verbosity >= options::YACKING)
-				std::cout << "SORT:\n";
+      if (opt.verbosity >= options::YACKING)
+        for (auto v : best_move_origin) {
+          std::cout << v << " -> " << best_move_target[v] << " ("
+                    << best_move_delta[v] << ")\n";
+        }
 
-			if(opt.verbosity >= options::YACKING)
-			for(auto v : best_move_origin)
-			{
-				std::cout << v << " -> " << best_move_target[v] << " (" << best_move_delta[v] << ")\n";
-			}
+      if (best_move_origin.size() > opt.batch)
+        best_move_origin.resize(opt.batch);
+      first = 0;
 
-			best_move_origin.resize(10);
-			first = 0;
+    } else {
 
-		} else {
+      // delta = get_cost(move_vertex, move_target);
 
-			// delta = get_cost(move_vertex, move_target);
+      // assert(delta == update);
 
-			// assert(delta == update);
-
-	    incr_nbits += delta;
-	    if (opt.verbosity >= block::options::NORMAL)
-        std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " " << std::setw(10) << num_cost << " | " 
-									<< std::setw(5) << model.size() << "/" << std::left << std::setw(4)
-                  << model.num_edges << std::right << " " 
-									<< std::setw(8) << std::setprecision(3) << incr_nbits << " -- "
+      incr_nbits += delta;
+      if (opt.verbosity >= block::options::NORMAL)
+        std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " "
+                  << std::setw(10) << num_cost << " | " << std::setw(5)
+                  << model.size() << "/" << std::left << std::setw(4)
+                  << model.num_edges << std::right << " " << std::setw(8)
+                  << (int)incr_nbits << "  -- "
                   << "move " << move_vertex << ": " << block[move_vertex]
                   << " -> " << move_target << " (" << delta;
 
-	    move(move_vertex, move_target);
+      move(move_vertex, move_target);
 
-	    if (opt.checked()) {
-	      double pnbits{nbits};
-	      nbits = get_objective(); // opt.alpha, opt.beta);
-	      if (opt.verbosity >= block::options::NORMAL)
-	        std::cout << "/" << (nbits - pnbits);
-	      check(nbits, incr_nbits, opt.check_epsilon);
+      if (opt.checked()) {
+        double pnbits{nbits};
+        nbits = get_objective(); // opt.alpha, opt.beta);
+        if (opt.verbosity >= block::options::NORMAL)
+          std::cout << "/" << (nbits - pnbits);
+        check(nbits, incr_nbits, opt.check_epsilon);
 
-				// std::cout << "CHECK OK\n" ;
-			}
+        // std::cout << "CHECK OK\n" ;
+      }
 
-			if (opt.verbosity >= block::options::NORMAL)
-		  std::cout << ")" << std::endl;
-
-		}
-	}
+      if (opt.verbosity >= block::options::NORMAL)
+        std::cout << ")" << std::endl;
+    }
+  }
 }
-	
+
 // template <class graph_struct>
 // void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
 //
@@ -801,12 +800,11 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
 
   epsilon = opt.epsilon;
 
-	double nbits{0}, incr_nbits{0};
+  double nbits{0}, incr_nbits{0};
   if (opt.checked())
-		incr_nbits = nbits = init_check_structs();
-	else
-		incr_nbits = nbits = get_objective();
-
+    incr_nbits = nbits = init_check_structs();
+  else
+    incr_nbits = nbits = get_objective();
 
   intstack movable(data.capacity());
   movable.fill();
@@ -817,28 +815,28 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
 
   double delta, update;
 
-	//
-	//
-	// int square = model.size() * model.size();
-	// double bsize{static_cast<double>(square)};
-	// // double good_move{}
-	// std::cout << bsize << std::endl;
-	//
-	// // for(auto i{0}; i<stored; ++i) {
-	// // 	delta = get_cost(opt, best_move_origin[i], best_move_target[best_move_origin[i]]);
-	// //
-	// // 	// if(get_stored(i) < -epsilon)
-	// // 	// {
-	// // 	//
-	// // 	// }
-	// // }
-
+  //
+  //
+  // int square = model.size() * model.size();
+  // double bsize{static_cast<double>(square)};
+  // // double good_move{}
+  // std::cout << bsize << std::endl;
+  //
+  // // for(auto i{0}; i<stored; ++i) {
+  // // 	delta = get_cost(opt, best_move_origin[i],
+  // best_move_target[best_move_origin[i]]);
+  // //
+  // // 	// if(get_stored(i) < -epsilon)
+  // // 	// {
+  // // 	//
+  // // 	// }
+  // // }
 
   while (true) {
     bool moved;
     auto move_vertex{-1};
     auto move_target{-1};
-		update = -epsilon;
+    update = -epsilon;
 
     // try to find a move of negative cost
     for (auto v : movable) {
@@ -855,9 +853,9 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
             update = delta;
 
             if (opt.policy == block::options::FIRST) {
-							moved = true;
+              moved = true;
               break;
-						}
+            }
           }
         }
       }
@@ -869,15 +867,16 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
     if (move_vertex < 0)
       break;
     else {
-			if (opt.policy == block::options::BEST)
-				update = get_cost(move_vertex, move_target);
+      if (opt.policy == block::options::BEST)
+        update = get_cost(move_vertex, move_target);
 
       incr_nbits += update;
       if (opt.verbosity >= block::options::NORMAL)
-        std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " " << std::setw(10) << num_cost << " | " 
-									<< std::setw(5) << model.size() << "/" << std::left << std::setw(4)
-                  << model.num_edges << std::right << " " 
-									<< std::setw(8) << std::setprecision(3) << incr_nbits << " -- "
+        std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " "
+                  << std::setw(10) << num_cost << " | " << std::setw(5)
+                  << model.size() << "/" << std::left << std::setw(4)
+                  << model.num_edges << std::right << " " << std::setw(8)
+                  << std::setprecision(3) << incr_nbits << " -- "
                   << "move " << move_vertex << ": " << block[move_vertex]
                   << " -> " << move_target << " (" << update;
 
@@ -892,12 +891,12 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
           std::cout << "/" << (nbits - pnbits);
         check(nbits, incr_nbits, opt.check_epsilon);
       }
-			
+
       if (opt.verbosity >= block::options::NORMAL)
         std::cout << ")" << std::endl;
     }
 
-		// exit(1);
+    // exit(1);
   }
 }
 
@@ -1065,18 +1064,17 @@ void block_model<graph_struct>::check(double nbits, double incr_nbits,
 
 template <class graph_struct>
 double block_model<graph_struct>::get_objective() { // const double A, const double
-                                                   // B) {
+                                                    // B) {
   double nbits{0};
 
-	if(!opt.checked() and model.size() == data.size())
-		return static_cast<double>(model.size() * model.size());
+  if (!opt.checked() and model.size() == data.size())
+    return static_cast<double>(model.size() * model.size());
 
-	
-	if(opt.checked())
-  for (int i = 0; i < N; ++i) {
-    std::fill(begin(block_bits[i]), end(block_bits[i]), 0);
-    std::fill(begin(error_bits[i]), end(error_bits[i]), 0);
-  }
+  if (opt.checked())
+    for (int i = 0; i < N; ++i) {
+      std::fill(begin(block_bits[i]), end(block_bits[i]), 0);
+      std::fill(begin(error_bits[i]), end(error_bits[i]), 0);
+    }
 
   for (auto u : model.nodes) {
 
@@ -1090,10 +1088,10 @@ double block_model<graph_struct>::get_objective() { // const double A, const dou
 
       nbits += block_sz;
 
-			if(opt.checked())
-      	block_bits[u][v] = block_sz;
-			
-			// std::cout << " + " << block_sz << " = " << nbits << std::endl;
+      if (opt.checked())
+        block_bits[u][v] = block_sz;
+
+      // std::cout << " + " << block_sz << " = " << nbits << std::endl;
     }
 
     // error size
@@ -1114,12 +1112,12 @@ double block_model<graph_struct>::get_objective() { // const double A, const dou
                             density * std::log2(density))};
       nbits += error_sz;
 
-			if(opt.checked())
-      	error_bits[u][v] += error_sz;
+      if (opt.checked())
+        error_bits[u][v] += error_sz;
     }
   }
-	// return 0;
-	
+  // return 0;
+
   return nbits;
 }
 

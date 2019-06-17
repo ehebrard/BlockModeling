@@ -1,7 +1,7 @@
 
 MAINDIR = .
 
-COPTIMIZE = -g 
+COPTIMIZE = -O3 
 
 CCC = g++
 

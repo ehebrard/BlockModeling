@@ -1,12 +1,13 @@
 
 
 #include <random>
-#include <sys/resource.h>
-#include <unistd.h>
+// #include <sys/resource.h>
+// #include <unistd.h>
 
 // #include "intstack.hpp"
 #include "algorithm.hpp"
 #include "global.hpp"
+#include "timing.hpp"
 #include "options.hpp"
 #include "reader.hpp"
 
@@ -15,11 +16,11 @@ using namespace block;
 
 std::mt19937 random_generator;
 
-double cpuTime(void) {
-  struct rusage ru;
-  getrusage(RUSAGE_SELF, &ru);
-  return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000;
-}
+// double cpuTime(void) {
+//   struct rusage ru;
+//   getrusage(RUSAGE_SELF, &ru);
+//   return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000;
+// }
 
 template <class BM>
 void compress(BM &m, std::vector<std::vector<int>> &blocks) {

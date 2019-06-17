@@ -48,7 +48,7 @@ public:
       : data(g), model(g), N{g.capacity()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), block(N), block_size(N, 1), bitsize(N) {
+        prior_bwd_edge(N), block(N), block_size(N, 1) {
 
     for (auto u : g.nodes)
       block[u] = u;
@@ -59,55 +59,47 @@ public:
       : data(g), N{blocks.size()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), block(N), block_size(N, 0), bitsize(N) {
+        prior_bwd_edge(N), block(g.capacity()), block_size(N, 0) {
 
     model.initialise(N);
+		
 
-std::cout << 11 << std::endl;
-
-    auto bi{0};
-    for (auto &b : blocks) {
-      std::cout << bi << ": ";
-      block_size[bi] = b.size();
-      for (auto u : b) {
-        std::cout << " " << u;
-        block[u] = bi;
+    for (auto b{begin(blocks)}; b!=end(blocks); ++b) {
+      // std::cout << (b-begin(blocks)) << ": ";
+      block_size[b-begin(blocks)] = b->size();
+      for (auto u{b->begin()}; u!=b->end(); ++u) {
+        // std::cout << " " << *u;
+        block[*u] = (b-begin(blocks));
       }
-      std::cout << std::endl;
-      ++bi;
+      // std::cout << std::endl;
     }
 
-std::cout << 22 << std::endl;
-
-    bi = 0;
-    for (auto &b : blocks) {
+		for (auto b{begin(blocks)}; b!=end(blocks); ++b) {
       std::fill(begin(fwd_neighbors), end(fwd_neighbors), 0);
-      // std::fill(begin(bwd_neighbors), end(bwd_neighbors), 0);
-      for (auto u : b) {
-        std::cout << " " << u << "( ";
-        for (auto e : g.successors[u]) {
-          std::cout << e.endpoint() << ":" << block[e.endpoint()] << " ";
+			for (auto u{b->begin()}; u!=b->end(); ++u) {
+        // std::cout << " " << *u << "( ";
+        for (auto e : g.successors[*u]) {
+          // std::cout << e.endpoint() << ":" << block[e.endpoint()] << " ";
           ++fwd_neighbors[block[e.endpoint()]];
         }
-        std::cout << ")" << std::endl;
-        // for (auto e : g.predecessors[u])
-        //   ++bwd_neighbors[block[e.endpoint()]];
+        // std::cout << ")" << std::endl;
       }
-      std::cout << std::endl;
+      // std::cout << std::endl;
 
+			auto bi{(b-begin(blocks))};
       for (int bj{0}; bj < N; ++bj) {
-        std::cout << " " << fwd_neighbors[bj];
+        // std::cout << " " << fwd_neighbors[bj];
         if (fwd_neighbors[bj] > 0) {
-
-          std::cout << ":(" << bi << "," << bj << ")";
+          // std::cout << ":(" << bi << "," << bj << ")";
           model.add_edge(bi, bj, fwd_neighbors[bj]);
         }
       }
-      ++bi;
-      std::cout << std::endl;
+      // std::cout << std::endl;
+			
+			// std::cout << model << std::endl;
     }
 
-    std::cout << model << std::endl;
+    // std::cout << model << std::endl;
   }
 
   void get_blocks(std::vector<std::vector<int>> &blocks);
@@ -146,7 +138,7 @@ private:
 
   /********* VERIFICATION STUFF ***********/
   // for the brute-force thing
-  std::vector<float> bitsize;
+  // std::vector<float> bitsize;
   std::vector<int> util;
   // float err_epsilon{.5};
   void check(float nbits, float incr_nbits, float eps);
@@ -175,7 +167,7 @@ float block_model<graph_struct>::get_cost(options &opt, const int v,
   // float B{opt.beta};
 
   if (opt.checked()) {
-    for (int i = 0; i < data.capacity(); ++i) {
+    for (int i = 0; i < N; ++i) {
       std::fill(begin(bldlt_bits[i]), end(bldlt_bits[i]), 0);
       std::fill(begin(erdlt_bits[i]), end(erdlt_bits[i]), 0);
     }
@@ -473,19 +465,19 @@ void block_model<graph_struct>::compress(options &opt, std::mt19937 &rng) {
   epsilon = opt.epsilon;
 
   if (opt.checked()) {
-    block_bits.resize(data.capacity());
-    error_bits.resize(data.capacity());
-    iblck_bits.resize(data.capacity());
-    ierrr_bits.resize(data.capacity());
-    bldlt_bits.resize(data.capacity());
-    erdlt_bits.resize(data.capacity());
-    for (auto i = 0; i < data.capacity(); ++i) {
-      block_bits[i].resize(data.capacity(), 1);
-      error_bits[i].resize(data.capacity(), 0);
-      bldlt_bits[i].resize(data.capacity(), 0);
-      erdlt_bits[i].resize(data.capacity(), 0);
-      iblck_bits[i].resize(data.capacity(), 1);
-      ierrr_bits[i].resize(data.capacity(), 0);
+    block_bits.resize(N);
+    error_bits.resize(N);
+    iblck_bits.resize(N);
+    ierrr_bits.resize(N);
+    bldlt_bits.resize(N);
+    erdlt_bits.resize(N);
+    for (auto i = 0; i < N; ++i) {			
+      block_bits[i].resize(N);
+      error_bits[i].resize(N);
+      bldlt_bits[i].resize(N,0);
+      erdlt_bits[i].resize(N,0);
+      iblck_bits[i].resize(N);
+      ierrr_bits[i].resize(N);
     }
   }
 
@@ -499,6 +491,12 @@ void block_model<graph_struct>::compress(options &opt, std::mt19937 &rng) {
   float nbits{0};
   if (opt.checked()) {
     nbits = get_objective(); // opt.alpha, opt.beta);
+		for (auto i = 0; i < N; ++i) {	
+		for (auto j = 0; j < N; ++j) {
+			iblck_bits[i][j] = block_bits[i][j];
+				ierrr_bits[i][j] = error_bits[i][j];
+			}	
+		}
     if (opt.verbosity >= block::options::NORMAL)
       std::cout << nbits << " / " << (model.size() * model.size()) << std::endl;
   }
@@ -640,8 +638,8 @@ void block_model<graph_struct>::check(float nbits, float incr_nbits,
   int terr{-1};
 
   float cibits{0}, cnbits{0};
-  for (int i = 0; i < data.capacity(); ++i) {
-    for (int j = 0; j < data.capacity(); ++j) {
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
       iblck_bits[i][j] += bldlt_bits[i][j];
       ierrr_bits[i][j] += erdlt_bits[i][j];
       cibits += iblck_bits[i][j];
@@ -673,24 +671,24 @@ void block_model<graph_struct>::check(float nbits, float incr_nbits,
 
   if (!ok) {
     std::cout << "\nDELTA MODEL SIZE:\n";
-    for (int i = 0; i < data.capacity(); ++i) {
-      for (int j = 0; j < data.capacity(); ++j) {
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
         std::cout << std::setw(5) << std::setprecision(2) << bldlt_bits[i][j]
                   << " ";
       }
       std::cout << std::endl;
     }
     std::cout << "\nINCR MODEL SIZE:\n";
-    for (int i = 0; i < data.capacity(); ++i) {
-      for (int j = 0; j < data.capacity(); ++j) {
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
         std::cout << std::setw(5) << std::setprecision(2) << iblck_bits[i][j]
                   << " ";
       }
       std::cout << std::endl;
     }
     std::cout << "\nREAL MODEL SIZE:\n";
-    for (int i = 0; i < data.capacity(); ++i) {
-      for (int j = 0; j < data.capacity(); ++j) {
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
         std::cout << std::setw(5) << std::setprecision(2) << block_bits[i][j]
                   << " ";
       }
@@ -698,24 +696,24 @@ void block_model<graph_struct>::check(float nbits, float incr_nbits,
     }
 
     std::cout << "\nDELTA ERROR SIZE:\n";
-    for (int i = 0; i < data.capacity(); ++i) {
-      for (int j = 0; j < data.capacity(); ++j) {
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
         std::cout << std::setw(5) << std::setprecision(2) << erdlt_bits[i][j]
                   << " ";
       }
       std::cout << std::endl;
     }
     std::cout << "\nINCR ERROR SIZE:\n";
-    for (int i = 0; i < data.capacity(); ++i) {
-      for (int j = 0; j < data.capacity(); ++j) {
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
         std::cout << std::setw(5) << std::setprecision(2) << ierrr_bits[i][j]
                   << " ";
       }
       std::cout << std::endl;
     }
     std::cout << "\nREAL ERROR SIZE:\n";
-    for (int i = 0; i < data.capacity(); ++i) {
-      for (int j = 0; j < data.capacity(); ++j) {
+    for (int i = 0; i < N; ++i) {
+      for (int j = 0; j < N; ++j) {
         std::cout << std::setw(5) << std::setprecision(2) << error_bits[i][j]
                   << " ";
       }
@@ -736,7 +734,7 @@ float block_model<graph_struct>::get_objective() { // const float A, const float
                                                    // B) {
   float nbits{0};
 
-  for (int i = 0; i < model.capacity(); ++i) {
+  for (int i = 0; i < N; ++i) {
     std::fill(begin(block_bits[i]), end(block_bits[i]), 0);
     std::fill(begin(error_bits[i]), end(error_bits[i]), 0);
   }

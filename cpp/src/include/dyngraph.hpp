@@ -6,7 +6,7 @@
 
 #include "intstack.hpp"
 
-// #define _VERIFY_MCGRAPH 1
+//#define _VERIFY_MCGRAPH 1
 
 namespace block
 {
@@ -456,7 +456,7 @@ template<class WEIGHT>
 void dyngraph<WEIGHT>::verify(const char* msg)
 {
 
-  // std::cout << *this << std::endl;
+  std::cout << *this << std::endl;
 
   auto count{num_edges};
   std::vector<int> f(nodes.capacity(), 0);

@@ -48,7 +48,10 @@ public:
       : data(g), model(g), N{g.capacity()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), block(N), block_size(N, 1) {
+        prior_bwd_edge(N), block(N), block_size(N, 1), best_move_origin(N), best_move_target(N,-1) {
+
+					for(int i{0}; i<g.capacity(); ++i)
+						best_move_origin[i]=i;
 
     for (auto u : g.nodes)
       block[u] = u;
@@ -59,9 +62,12 @@ public:
       : data(g), N{blocks.size()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), block(g.capacity()), block_size(N, 0) {
+        prior_bwd_edge(N), block(g.capacity()), block_size(N, 0), best_move_origin(g.capacity()), best_move_target(g.capacity(),-1) {
 
     model.initialise(N);
+		
+		for(int i{0}; i<g.capacity(); ++i)
+			best_move_origin[i]=i;
 		
 
     for (auto b{begin(blocks)}; b!=end(blocks); ++b) {
@@ -135,6 +141,12 @@ private:
 
   std::vector<int> new_fwd_edges;
   std::vector<int> new_bwd_edges;
+	
+	
+	/********* BEST MOVE STUFF ***********/
+	std::vector<int> best_move_origin;
+	std::vector<int> best_move_target;
+	
 
   /********* VERIFICATION STUFF ***********/
   // for the brute-force thing
@@ -520,15 +532,25 @@ void block_model<graph_struct>::compress(options &opt, std::mt19937 &rng) {
         auto o{block[v]};
         if (o != t) {
           delta = get_cost(opt, v, t);
+					
+	        // std::cout << "  probe move " << v << ": " << block[v]
+	        //           << " -> " << t << " (" << delta;
 
           if (delta < update) {
             move_vertex = v;
             move_target = t;
             update = delta;
-            moved = true;
-            if (opt.policy == block::options::FIRST)
+						
+						// std::cout << "*";
+						
+            if (opt.policy == block::options::FIRST) {
+							moved = true;
               break;
+							// std::cout << ")\n";
+						}
           }
+					
+					// std::cout << ")\n";
         }
       }
 
@@ -564,6 +586,8 @@ void block_model<graph_struct>::compress(options &opt, std::mt19937 &rng) {
       if (opt.checked())
         check(nbits, incr_nbits, opt.check_epsilon);
     }
+		
+		// exit(1);
   }
 }
 

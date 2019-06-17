@@ -1,12 +1,13 @@
 
 
 #include <random>
-#include <sys/resource.h>
-#include <unistd.h>
+// #include <sys/resource.h>
+// #include <unistd.h>
 
 // #include "intstack.hpp"
 #include "algorithm.hpp"
 #include "global.hpp"
+#include "timing.hpp"
 #include "options.hpp"
 #include "reader.hpp"
 
@@ -15,15 +16,15 @@ using namespace block;
 
 std::mt19937 random_generator;
 
-double cpuTime(void) {
-  struct rusage ru;
-  getrusage(RUSAGE_SELF, &ru);
-  return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000;
-}
+// double cpuTime(void) {
+//   struct rusage ru;
+//   getrusage(RUSAGE_SELF, &ru);
+//   return (double)ru.ru_utime.tv_sec + (double)ru.ru_utime.tv_usec / 1000000;
+// }
 
 template <class BM>
-void compress(BM &m, std::vector<std::vector<int>> &blocks, options &options) {
-  m.compress(options, random_generator);
+void compress(BM &m, std::vector<std::vector<int>> &blocks) {
+  m.compress(random_generator);
   // std::vector<std::vector<int>> blocks;
   m.get_blocks(blocks);
 }
@@ -73,10 +74,10 @@ int main(int argc, char *argv[]) {
       nodes.remove(v);
     }
 
-    block_model<dyngraph<wtype>> m(g, blocks);
+    block_model<dyngraph<wtype>> m(g, blocks, options);
     // m = warm;
     // block_model m(g, blocks);
-    compress(m, blocks, options);
+    compress(m, blocks);
 		
 		k = m.model.size();
 		std::vector<std::vector<float>> densities(k);
@@ -106,9 +107,9 @@ int main(int argc, char *argv[]) {
 		std::cout << m.model << std::endl;
 		
   } else {
-    block_model<dyngraph<wtype>> m(g);
+    block_model<dyngraph<wtype>> m(g, options);
     // m = cold;
-    compress(m, blocks, options);
+    compress(m, blocks);
   }
 
   // compress(m, blocks, options);

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <assert.h>
 
+
 #include "graph.hpp"
 #include "dyngraph.hpp"
 
@@ -28,6 +29,8 @@ typedef block::weighted_edge<wtype> edge;
 
 typedef block::dyngraph<wtype> dgraph;
 typedef block::neighbor_info<wtype> dedge;
+
+
 
 #endif //_GLOBAL_H
 

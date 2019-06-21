@@ -18,30 +18,45 @@ void BFS(graph_struct &g, intstack &order, int start = 0) {
       order.add(e.endpoint());
 }
 
+double get_error(const int m, const int size) {
+
+  double delta{0};
+
+  double dij = static_cast<double>(m) / static_cast<double>(size);
+  if (m > 0 and m < size)
+    delta = static_cast<double>(size) *
+            ((dij - 1.0) * std::log2(1.0 - dij) - dij * std::log2(dij));
+
+  return delta;
+}
+
 // compute the error delta of a move w.r.t. blocks i -> j
 // there are 'mij' edges from i to j and 'deltaij' are added
 double get_error_delta(const int mij, const int psize, const int nsize,
                        const int deltaij) {
 
-  double delta{0};
+  // double delta{0};
+  //
+  // double dij = static_cast<double>(mij) / static_cast<double>(psize);
+  // if (mij > 0 and mij < psize)
+  //   delta -= static_cast<double>(psize) *
+  //            ((dij - 1.0) * std::log2(1.0 - dij) - dij * std::log2(dij));
+  //
+  // if (nsize > 0) {
+  //   double dpij =
+  //       static_cast<double>(mij + deltaij) / static_cast<double>(nsize);
+  //   if (mij + deltaij > 0 and mij + deltaij < nsize) {
+  //     delta += static_cast<double>(nsize) *
+  //              ((dpij - 1.0) * std::log2(1.0 - dpij) - dpij * std::log2(dpij));
+  //   }
+  // }
 
-  double dij = static_cast<double>(mij) / static_cast<double>(psize);
-  if (mij > 0 and mij < psize)
-    delta -= static_cast<double>(psize) *
-             ((dij - 1.0) * std::log2(1.0 - dij) - dij * std::log2(dij));
-
-  if (nsize > 0) {
-    double dpij =
-        static_cast<double>(mij + deltaij) / static_cast<double>(nsize);
-    if (mij + deltaij > 0 and mij + deltaij < nsize) {
-      delta += static_cast<double>(nsize) *
-               ((dpij - 1.0) * std::log2(1.0 - dpij) - dpij * std::log2(dpij));
-    }
-  }
+  auto delta{get_error(mij + deltaij, nsize)};
+  delta -= get_error(mij, psize);
+  // assert(delta == alt);
 
   return delta;
 }
-
 
 template <class graph_struct> class block_model {
 
@@ -50,8 +65,9 @@ public:
       : opt(opt), data(g), model(g), N{g.capacity()}, fwd_neighbors(N),
         bwd_neighbors(N), origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), block(N), block_size(N, 1), best_move_origin(N),
-        best_move_target(N, -1), best_move_delta(N, 0), num_cost{0} {
+        prior_bwd_edge(N), prior_fwd_edges(N), prior_bwd_edges(N), block(N),
+        block_size(N, 1), best_move_origin(N), best_move_target(N, -1),
+        best_move_delta(N, 0), num_cost{0} {
 
     for (int i{0}; i < g.capacity(); ++i)
       best_move_origin[i] = i;
@@ -65,9 +81,10 @@ public:
       : opt(opt), data(g), N{blocks.size()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), block(g.capacity()), block_size(N, 0),
-        best_move_origin(g.capacity()), best_move_target(g.capacity(), -1),
-        best_move_delta(g.capacity(), 0), num_cost{0} {
+        prior_bwd_edge(N), prior_fwd_edges(N), prior_bwd_edges(N),
+        block(g.capacity()), block_size(N, 0), best_move_origin(g.capacity()),
+        best_move_target(g.capacity(), -1), best_move_delta(g.capacity(), 0),
+        num_cost{0} {
 
     model.initialise(N);
 
@@ -117,7 +134,11 @@ public:
   void compress_old(std::mt19937 &rng);
   void compress(std::mt19937 &rng);
 
-  double get_cost(const int v, const int t);
+  double
+  get_move_cost(const int v,
+                const int t); // cost of moving vertex v from its block to t
+  double get_merge_cost(const int o,
+                        const int t); // cost of merging blocks o and t
   void move(const int v, const int t);
 
   options &opt;
@@ -143,11 +164,17 @@ private:
   std::vector<bool> prior_fwd_edge;
   std::vector<bool> prior_bwd_edge;
 
+  intstack prior_fwd_edges;
+  intstack prior_bwd_edges;
+
   std::vector<int> block;
   std::vector<int> block_size;
 
   std::vector<int> new_fwd_edges;
   std::vector<int> new_bwd_edges;
+	
+  std::vector<int> nnew_fwd_edges;
+  std::vector<int> nnew_bwd_edges;
 
   /********* BEST MOVE STUFF ***********/
   std::vector<int> best_move_origin;
@@ -184,7 +211,179 @@ void block_model<graph_struct>::get_blocks(
 }
 
 template <class graph_struct>
-double block_model<graph_struct>::get_cost(const int v, const int t) {
+double block_model<graph_struct>::get_merge_cost(const int o, const int t) {
+
+  double delta{0};
+
+  // + loop (ot) - loop o - loop t - arcs ot - arcs to
+  double ijdelta{static_cast<double>(
+      (block_size[o] + block_size[t]) * (block_size[o] + block_size[t]) + 1)};
+  ijdelta -= static_cast<double>((block_size[o] * block_size[o]) + 1);
+  delta += ijdelta;
+  if (opt.checked())
+    bldlt_bits[o][o] = ijdelta;
+
+  ijdelta = -static_cast<double>((block_size[t] * block_size[t]) + 1);
+  delta += ijdelta;
+  if (opt.checked())
+    bldlt_bits[t][t] = ijdelta;
+
+  ijdelta = -static_cast<double>((block_size[o] * block_size[t]) + 1);
+  delta += 2 * ijdelta;
+  if (opt.checked())
+    bldlt_bits[o][t] = bldlt_bits[t][o] = ijdelta;
+
+  // we need to compute error delta only with respect to blocks with at least
+  // one edge with o or t
+  for (auto e : model.successors[o])
+    origin_fwd_edgecount[e.endpoint()] = e.weight();
+  for (auto e : model.predecessors[o])
+    origin_bwd_edgecount[e.endpoint()] = e.weight();
+  for (auto e : model.successors[t])
+    target_fwd_edgecount[e.endpoint()] = e.weight();
+  for (auto e : model.successors[o])
+    target_bwd_edgecount[e.endpoint()] = e.weight();
+
+  for (auto j : model.nodes) {
+    if (j == o) {
+
+      // error on oo
+      ijdelta = get_error(origin_fwd_edgecount[o] + origin_fwd_edgecount[t],
+                          (block_size[o] + block_size[t]) *
+                              (block_size[o] + block_size[t]));
+      -get_error(origin_fwd_edgecount[o], block_size[o] * block_size[o]);
+      delta += ijdelta;
+      if (opt.checked())
+        erdlt_bits[o][o] = ijdelta;
+
+      // error on ot
+      ijdelta -
+          get_error(origin_fwd_edgecount[t], block_size[o] * block_size[t]);
+      delta += ijdelta;
+      if (opt.checked())
+        erdlt_bits[o][t] = ijdelta;
+
+      // error on ot
+      ijdelta -
+          get_error(origin_bwd_edgecount[t], block_size[o] * block_size[t]);
+      delta += ijdelta;
+      if (opt.checked())
+        erdlt_bits[t][o] = ijdelta;
+
+    } else if (j == t) {
+
+      // error on tt
+      ijdelta =
+          -get_error(target_fwd_edgecount[t], (block_size[t] * block_size[t]));
+      delta += ijdelta;
+      if (opt.checked())
+        erdlt_bits[t][t] = ijdelta;
+
+      // // error on ot [already counted]
+      // ijdelta = -get_error(target_fwd_edgecount[t], (block_size[t] *
+      // block_size[t]));
+      // 		 	delta += ijdelta;
+      // 		 	if(opt.checked())
+      // 		 		erdlt_bits[o][t] = ijdelta;
+
+      // // error on to [already counted]
+      // ijdelta = -get_error(target_bwd_edgecount[t], (block_size[t] *
+      // block_size[t]));
+      // 		 	delta += ijdelta;
+      // 		 	if(opt.checked())
+      // 		 		erdlt_bits[t][o] = ijdelta;
+
+    } else {
+      // remove the edges jt and tj
+      ijdelta = static_cast<double>((block_size[j] * block_size[t]) + 1);
+      delta += 2 * ijdelta;
+      if (opt.checked())
+        bldlt_bits[j][t] = bldlt_bits[t][j] = ijdelta;
+
+      // add the edges j(ot) and (ot)j remove the edges jo and oj
+      ijdelta = (static_cast<double>(
+                     (block_size[j] * (block_size[o] + block_size[t])) + 1) -
+                 static_cast<double>((block_size[j] * block_size[o]) + 1));
+      delta += 2 * ijdelta;
+      if (opt.checked())
+        bldlt_bits[j][o] = bldlt_bits[o][j] = ijdelta;
+
+      // error on oj
+      ijdelta = get_error(origin_fwd_edgecount[j] + target_fwd_edgecount[j],
+                          (block_size[o] + block_size[t]) * block_size[j]);
+      -get_error(origin_fwd_edgecount[j], block_size[o] * block_size[j]);
+      delta += ijdelta;
+      if (opt.checked())
+        erdlt_bits[o][j] = ijdelta;
+
+      // error on tj
+      ijdelta = get_error(target_fwd_edgecount[j] + target_fwd_edgecount[j],
+                          (block_size[o] + block_size[t]) * block_size[j]);
+      -get_error(target_fwd_edgecount[j], block_size[t] * block_size[j]);
+      delta += ijdelta;
+      if (opt.checked())
+        erdlt_bits[t][j] = ijdelta;
+
+      // error on jo
+      ijdelta = get_error(origin_bwd_edgecount[j] + target_bwd_edgecount[j],
+                          (block_size[o] + block_size[t]) * block_size[j]);
+      -get_error(origin_bwd_edgecount[j], block_size[o] * block_size[j]);
+      delta += ijdelta;
+      if (opt.checked())
+        erdlt_bits[j][o] = ijdelta;
+
+      // error on tj
+      ijdelta = get_error(target_bwd_edgecount[j] + target_bwd_edgecount[j],
+                          (block_size[o] + block_size[t]) * block_size[j]);
+      -get_error(target_bwd_edgecount[j], block_size[t] * block_size[j]);
+      delta += ijdelta;
+      if (opt.checked())
+        erdlt_bits[j][t] = ijdelta;
+    }
+  }
+
+  // // error on t -> t
+  // err = // B *
+  //     get_error_delta(target_bwd_edgecount[t], block_size[t] * block_size[t],
+  //                     (block_size[t] + 1) * (block_size[t] + 1),
+  //                     bwd_neighbors[t] + fwd_neighbors[t]);
+  // ijdelta += err;
+  // if (opt.checked())
+  //   erdlt_bits[t][t] += err;
+  //
+  // // error on t -> o
+  // err = // B *
+  //     get_error_delta(origin_bwd_edgecount[t], block_size[t] * block_size[o],
+  //                     (block_size[t] + 1) * (block_size[o] - 1),
+  //                     fwd_neighbors[o] - bwd_neighbors[t]);
+  // ijdelta += err;
+  // if (opt.checked())
+  //   erdlt_bits[t][o] += err;
+  //
+  // assert(origin_bwd_edgecount[o] == origin_fwd_edgecount[o]);
+  //
+  //
+  //
+  // // error on o -> t
+  // err = // B *
+  //     get_error_delta(target_bwd_edgecount[o], block_size[t] * block_size[o],
+  //                     (block_size[t] + 1) * (block_size[o] - 1),
+  //                     bwd_neighbors[o] - fwd_neighbors[t]);
+
+  //
+  // //
+  // for(auto j : model.nodes)
+  // {
+  // 	// update the
+  // }
+
+  return delta;
+}
+
+template <class graph_struct>
+double block_model<graph_struct>::get_move_cost(const int v, const int t) {
+
+	std::cout << " compute for " << v << " -> " << t << std::endl;
 
   ++num_cost;
 
@@ -202,6 +401,9 @@ double block_model<graph_struct>::get_cost(const int v, const int t) {
 
   int o{block[v]};
 
+	prior_fwd_edges.clear();
+	prior_bwd_edges.clear();
+	
   std::fill(begin(prior_fwd_edge), end(prior_fwd_edge), false);
   std::fill(begin(prior_bwd_edge), end(prior_bwd_edge), false);
 
@@ -212,27 +414,54 @@ double block_model<graph_struct>::get_cost(const int v, const int t) {
   std::fill(begin(target_fwd_edgecount), end(target_fwd_edgecount), 0);
   std::fill(begin(origin_bwd_edgecount), end(origin_bwd_edgecount), 0);
   std::fill(begin(target_bwd_edgecount), end(target_bwd_edgecount), 0);
-
+	
+	auto u{0};
   for (auto e : model.successors[o])
     origin_fwd_edgecount[e.endpoint()] = e.weight();
   for (auto e : model.successors[t]) {
-    target_fwd_edgecount[e.endpoint()] = e.weight();
-    prior_fwd_edge[e.endpoint()] = true;
+		u = e.endpoint();
+    target_fwd_edgecount[u] = e.weight();
+    prior_fwd_edge[u] = true;
+		prior_fwd_edges.add(u);
   }
   for (auto e : model.predecessors[o])
     origin_bwd_edgecount[e.endpoint()] = e.weight();
   for (auto e : model.predecessors[t]) {
-    target_bwd_edgecount[e.endpoint()] = e.weight();
-    prior_bwd_edge[e.endpoint()] = true;
+		u = e.endpoint();
+    target_bwd_edgecount[u] = e.weight();
+    prior_bwd_edge[u] = true;
+		prior_bwd_edges.add(u);
   }
-
+	
+	nnew_fwd_edges.clear();
+	nnew_bwd_edges.clear();
+	
+	
   for (auto e : data.successors[v]) {
-    ++fwd_neighbors[block[e.endpoint()]];
+		u = block[e.endpoint()];
+		if(!prior_fwd_edges.contain(u)) {
+			
+			nnew_fwd_edges.push_back(u);
+		}
+    ++fwd_neighbors[u];
   }
 
   for (auto e : data.predecessors[v]) {
-    ++bwd_neighbors[block[e.endpoint()]];
+		u = block[e.endpoint()];
+		if(!prior_bwd_edges.contain(u)) {
+			if(u==25)
+			{
+				std::cout << " (" << v << ") -inser " << u << std::endl;
+			}
+			nnew_bwd_edges.push_back(u);
+		}
+    ++bwd_neighbors[u];
   }
+	
+	std::cout << prior_bwd_edges << std::endl;
+	for(auto x : nnew_bwd_edges)
+		std::cout << " " << x ;
+	std::cout << std::endl;
 
   assert(target_bwd_edgecount[o] == origin_fwd_edgecount[t]);
   assert(target_fwd_edgecount[o] == origin_bwd_edgecount[t]);
@@ -396,24 +625,30 @@ void block_model<graph_struct>::move(const int v, const int t) {
 
   ++block_size[t];
   --block_size[o];
+	
+	// std::cout << std::endl << t << std::endl;
+	// std::cout << prior_bwd_edge[25] << " " << prior_bwd_edges.contain(25) << " " << bwd_neighbors[25] << std::endl;
+	// std::cout << prior_fwd_edge[25] << " " << prior_fwd_edges.contain(25) << " " << fwd_neighbors[25] << std::endl;
+	
 
   for (auto j : model.nodes) {
     if (j == t) {
       if ((!prior_bwd_edge[j] and bwd_neighbors[j] > 0) or
           (!prior_fwd_edge[j] and fwd_neighbors[j] > 0)) {
         new_fwd_edges.push_back(t);
-        new_fwd_edges.push_back(t);
+        // new_fwd_edges.push_back(t);
       }
     } else {
       if (!prior_bwd_edge[j] and bwd_neighbors[j] > 0) {
         new_bwd_edges.push_back(j);
-        new_bwd_edges.push_back(t);
+        // new_bwd_edges.push_back(t);
       }
       if (!prior_fwd_edge[j] and fwd_neighbors[j] > 0) {
         new_fwd_edges.push_back(j);
-        new_fwd_edges.push_back(t);
+        // new_fwd_edges.push_back(t);
       }
     }
+		
 
     target_bwd_edgecount[j] += bwd_neighbors[j];
     target_fwd_edgecount[j] += fwd_neighbors[j];
@@ -437,28 +672,45 @@ void block_model<graph_struct>::move(const int v, const int t) {
       target_fwd_edgecount[o] -= bwd_neighbors[t];
     }
   }
+	
+	// if(new_bwd_edges.size() != nnew_bwd_edges.size())
+	// {
+	//
+	// 	std::cout << "\n n:";
+	// 	for(auto u : new_bwd_edges)
+	// 		std::cout << " " << u;
+	// 	std::cout << std::endl;
+	// 	std::cout << "nn:";
+	// 	for(auto u : nnew_bwd_edges)
+	// 		std::cout << " " << u;
+	// 	std::cout << std::endl;
+	// }
+	
+	//
+	// assert(new_fwd_edges.size() == nnew_fwd_edges.size());
+	// assert(new_bwd_edges.size() == nnew_bwd_edges.size());
 
   while (new_bwd_edges.size() > 0) {
-    auto i{new_bwd_edges.back()};
-    new_bwd_edges.pop_back();
+    // auto i{new_bwd_edges.back()};
+    // new_bwd_edges.pop_back();
     auto j{new_bwd_edges.back()};
     new_bwd_edges.pop_back();
 
     // std::cout << "add " << j << "-(" << target_bwd_edgecount[j] << ")->" << i
     //           << std::endl;
 
-    model.add_edge(j, i, target_bwd_edgecount[j]);
+    model.add_edge(j, t, target_bwd_edgecount[j]);
   }
   while (new_fwd_edges.size() > 0) {
-    auto i{new_fwd_edges.back()};
-    new_fwd_edges.pop_back();
+    // auto i{new_fwd_edges.back()};
+    // new_fwd_edges.pop_back();
     auto j{new_fwd_edges.back()};
     new_fwd_edges.pop_back();
 
     // std::cout << "add " << i << "-(" << target_fwd_edgecount[j] << ")->" << j
     //           << std::endl;
 
-    model.add_edge(i, j, target_fwd_edgecount[j]);
+    model.add_edge(t, j, target_fwd_edgecount[j]);
   }
 
   for (auto e : model.successors[t])
@@ -497,7 +749,7 @@ void block_model<graph_struct>::store_best_move(const int v) {
   for (auto t : model.nodes) {
 
     if (o != t) {
-      delta = get_cost(v, t);
+      delta = get_move_cost(v, t);
 
       if (opt.verbosity >= options::YACKING)
         std::cout << "  probe move " << v << ": " << block[v] << " -> " << t
@@ -587,7 +839,7 @@ void block_model<graph_struct>::compress(std::mt19937 &rng) {
       auto v{best_move_origin[first]};
       if (best_move_target[v] != block[v] and
           model.nodes.contain(best_move_target[v])) {
-        delta = get_cost(v, best_move_target[v]);
+        delta = get_move_cost(v, best_move_target[v]);
         if (delta < -epsilon) {
           move_vertex = v;
           move_target = best_move_target[v];
@@ -643,11 +895,6 @@ void block_model<graph_struct>::compress(std::mt19937 &rng) {
       first = 0;
 
     } else {
-
-      // delta = get_cost(move_vertex, move_target);
-
-      // assert(delta == update);
-
       incr_nbits += delta;
       if (opt.verbosity >= block::options::NORMAL)
         std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " "
@@ -703,7 +950,8 @@ void block_model<graph_struct>::compress(std::mt19937 &rng) {
 // 	// std::cout << bsize << std::endl;
 // 	//
 // 	// // for(auto i{0}; i<stored; ++i) {
-// 	// // 	delta = get_cost(opt, best_move_origin[i], best_move_target[best_move_origin[i]]);
+// 	// // 	delta = get_move_cost(opt, best_move_origin[i],
+// best_move_target[best_move_origin[i]]);
 // 	// //
 // 	// // 	// if(get_stored(i) < -epsilon)
 // 	// // 	// {
@@ -725,7 +973,7 @@ void block_model<graph_struct>::compress(std::mt19937 &rng) {
 //       for (auto t : model.nodes) {
 //         auto o{block[v]};
 //         if (o != t) {
-//           delta = get_cost(v, t);
+//           delta = get_move_cost(v, t);
 //
 // 	        // std::cout << "  probe move " << v << ": " << block[v]
 // 	        //           << " -> " << t << " (" << delta;
@@ -765,7 +1013,8 @@ void block_model<graph_struct>::compress(std::mt19937 &rng) {
 //       break;
 //     else {
 // 			if (opt.policy == block::options::BEST)
-// 				update = get_cost(move_vertex, move_target);
+// 				update = get_move_cost(move_vertex,
+// move_target);
 //
 //       incr_nbits += update;
 //       if (opt.verbosity >= block::options::NORMAL)
@@ -793,7 +1042,6 @@ void block_model<graph_struct>::compress(std::mt19937 &rng) {
 // 		// exit(1);
 //   }
 // }
-
 
 template <class graph_struct>
 void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
@@ -823,7 +1071,7 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
   // std::cout << bsize << std::endl;
   //
   // // for(auto i{0}; i<stored; ++i) {
-  // // 	delta = get_cost(opt, best_move_origin[i],
+  // // 	delta = get_move_cost(opt, best_move_origin[i],
   // best_move_target[best_move_origin[i]]);
   // //
   // // 	// if(get_stored(i) < -epsilon)
@@ -845,7 +1093,7 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
       for (auto t : model.nodes) {
         auto o{block[v]};
         if (o != t) {
-          delta = get_cost(v, t);
+          delta = get_move_cost(v, t);
 
           if (delta < update) {
             move_vertex = v;
@@ -868,7 +1116,7 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
       break;
     else {
       if (opt.policy == block::options::BEST)
-        update = get_cost(move_vertex, move_target);
+        update = get_move_cost(move_vertex, move_target);
 
       incr_nbits += update;
       if (opt.verbosity >= block::options::NORMAL)

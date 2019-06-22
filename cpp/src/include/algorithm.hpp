@@ -64,8 +64,7 @@ public:
   block_model(graph_struct &g, options &opt)
       : opt(opt), data(g), model(g), N{g.capacity()}, fwd_neighbors(N),
         bwd_neighbors(N), origin_fwd_edgecount(N), target_fwd_edgecount(N),
-        origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), prior_fwd_edges(N), prior_bwd_edges(N), block(N),
+        origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edges(N), prior_bwd_edges(N), block(N),
         block_size(N, 1), best_move_origin(N), best_move_target(N, -1),
         best_move_delta(N, 0), num_cost{0} {
 
@@ -74,14 +73,14 @@ public:
 
     for (auto u : g.nodes)
       block[u] = u;
+		
   }
 
   template <class block_struct>
   block_model(graph_struct &g, block_struct &blocks, options &opt)
       : opt(opt), data(g), N{blocks.size()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
-        origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edge(N),
-        prior_bwd_edge(N), prior_fwd_edges(N), prior_bwd_edges(N),
+        origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edges(N), prior_bwd_edges(N),
         block(g.capacity()), block_size(N, 0), best_move_origin(g.capacity()),
         best_move_target(g.capacity(), -1), best_move_delta(g.capacity(), 0),
         num_cost{0} {
@@ -92,47 +91,34 @@ public:
       best_move_origin[i] = i;
 
     for (auto b{begin(blocks)}; b != end(blocks); ++b) {
-      // std::cout << (b-begin(blocks)) << ": ";
       block_size[b - begin(blocks)] = b->size();
       for (auto u{b->begin()}; u != b->end(); ++u) {
-        // std::cout << " " << *u;
         block[*u] = (b - begin(blocks));
       }
-      // std::cout << std::endl;
     }
 
     for (auto b{begin(blocks)}; b != end(blocks); ++b) {
       std::fill(begin(fwd_neighbors), end(fwd_neighbors), 0);
       for (auto u{b->begin()}; u != b->end(); ++u) {
-        // std::cout << " " << *u << "( ";
         for (auto e : g.successors[*u]) {
-          // std::cout << e.endpoint() << ":" << block[e.endpoint()] << " ";
           ++fwd_neighbors[block[e.endpoint()]];
         }
-        // std::cout << ")" << std::endl;
       }
-      // std::cout << std::endl;
 
       auto bi{(b - begin(blocks))};
       for (int bj{0}; bj < N; ++bj) {
-        // std::cout << " " << fwd_neighbors[bj];
         if (fwd_neighbors[bj] > 0) {
-          // std::cout << ":(" << bi << "," << bj << ")";
           model.add_edge(bi, bj, fwd_neighbors[bj]);
         }
       }
-      // std::cout << std::endl;
-
-      // std::cout << model << std::endl;
     }
-
-    // std::cout << model << std::endl;
   }
 
   void get_blocks(std::vector<std::vector<int>> &blocks);
 
   void compress_old(std::mt19937 &rng);
   void compress(std::mt19937 &rng);
+	void best_node(std::mt19937 &rng);
 
   double
   get_move_cost(const int v,
@@ -161,8 +147,8 @@ private:
   std::vector<wtype> origin_bwd_edgecount;
   std::vector<wtype> target_bwd_edgecount;
 
-  std::vector<bool> prior_fwd_edge;
-  std::vector<bool> prior_bwd_edge;
+  // std::vector<bool> prior_fwd_edge;
+  // std::vector<bool> prior_bwd_edge;
 
   intstack prior_fwd_edges;
   intstack prior_bwd_edges;
@@ -172,9 +158,6 @@ private:
 
   std::vector<int> new_fwd_edges;
   std::vector<int> new_bwd_edges;
-	
-  std::vector<int> nnew_fwd_edges;
-  std::vector<int> nnew_bwd_edges;
 
   /********* BEST MOVE STUFF ***********/
   std::vector<int> best_move_origin;
@@ -383,7 +366,7 @@ double block_model<graph_struct>::get_merge_cost(const int o, const int t) {
 template <class graph_struct>
 double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 
-	std::cout << " compute for " << v << " -> " << t << std::endl;
+	// std::cout << " compute for " << v << " -> " << t << std::endl;
 
   ++num_cost;
 
@@ -403,17 +386,22 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 
 	prior_fwd_edges.clear();
 	prior_bwd_edges.clear();
-	
-  std::fill(begin(prior_fwd_edge), end(prior_fwd_edge), false);
-  std::fill(begin(prior_bwd_edge), end(prior_bwd_edge), false);
 
-  std::fill(begin(fwd_neighbors), end(fwd_neighbors), 0);
-  std::fill(begin(bwd_neighbors), end(bwd_neighbors), 0);
 
-  std::fill(begin(origin_fwd_edgecount), end(origin_fwd_edgecount), 0);
-  std::fill(begin(target_fwd_edgecount), end(target_fwd_edgecount), 0);
-  std::fill(begin(origin_bwd_edgecount), end(origin_bwd_edgecount), 0);
-  std::fill(begin(target_bwd_edgecount), end(target_bwd_edgecount), 0);
+	for(auto u : model.nodes)
+	{
+		fwd_neighbors[u] = bwd_neighbors[u] = origin_fwd_edgecount[u] = origin_bwd_edgecount[u] = target_fwd_edgecount[u] = target_bwd_edgecount[u] = 0;
+	}
+
+  // std::fill(begin(fwd_neighbors), end(fwd_neighbors), 0);
+  // std::fill(begin(bwd_neighbors), end(bwd_neighbors), 0);
+  //
+  //
+  // std::fill(begin(origin_fwd_edgecount), end(origin_fwd_edgecount), 0);
+  // std::fill(begin(target_fwd_edgecount), end(target_fwd_edgecount), 0);
+  // std::fill(begin(origin_bwd_edgecount), end(origin_bwd_edgecount), 0);
+  // std::fill(begin(target_bwd_edgecount), end(target_bwd_edgecount), 0);
+
 	
 	auto u{0};
   for (auto e : model.successors[o])
@@ -421,7 +409,6 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
   for (auto e : model.successors[t]) {
 		u = e.endpoint();
     target_fwd_edgecount[u] = e.weight();
-    prior_fwd_edge[u] = true;
 		prior_fwd_edges.add(u);
   }
   for (auto e : model.predecessors[o])
@@ -429,39 +416,29 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
   for (auto e : model.predecessors[t]) {
 		u = e.endpoint();
     target_bwd_edgecount[u] = e.weight();
-    prior_bwd_edge[u] = true;
 		prior_bwd_edges.add(u);
   }
 	
-	nnew_fwd_edges.clear();
-	nnew_bwd_edges.clear();
+	new_fwd_edges.clear();
+	new_bwd_edges.clear();
 	
 	
   for (auto e : data.successors[v]) {
 		u = block[e.endpoint()];
-		if(!prior_fwd_edges.contain(u)) {
-			
-			nnew_fwd_edges.push_back(u);
+		if(!prior_fwd_edges.contain(u) and fwd_neighbors[u]==0) {
+			new_fwd_edges.push_back(u);
 		}
     ++fwd_neighbors[u];
   }
 
   for (auto e : data.predecessors[v]) {
 		u = block[e.endpoint()];
-		if(!prior_bwd_edges.contain(u)) {
-			if(u==25)
-			{
-				std::cout << " (" << v << ") -inser " << u << std::endl;
-			}
-			nnew_bwd_edges.push_back(u);
+		if(!prior_bwd_edges.contain(u) and bwd_neighbors[u]==0 and (u!=t or fwd_neighbors[u]==0)) {
+			new_bwd_edges.push_back(u);
 		}
     ++bwd_neighbors[u];
   }
-	
-	std::cout << prior_bwd_edges << std::endl;
-	for(auto x : nnew_bwd_edges)
-		std::cout << " " << x ;
-	std::cout << std::endl;
+
 
   assert(target_bwd_edgecount[o] == origin_fwd_edgecount[t]);
   assert(target_fwd_edgecount[o] == origin_bwd_edgecount[t]);
@@ -617,39 +594,15 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 template <class graph_struct>
 void block_model<graph_struct>::move(const int v, const int t) {
 
-  assert(new_bwd_edges.size() == 0);
-  assert(new_fwd_edges.size() == 0);
-
   auto o{block[v]};
   block[v] = t;
 
   ++block_size[t];
   --block_size[o];
-	
-	// std::cout << std::endl << t << std::endl;
-	// std::cout << prior_bwd_edge[25] << " " << prior_bwd_edges.contain(25) << " " << bwd_neighbors[25] << std::endl;
-	// std::cout << prior_fwd_edge[25] << " " << prior_fwd_edges.contain(25) << " " << fwd_neighbors[25] << std::endl;
-	
-
-  for (auto j : model.nodes) {
-    if (j == t) {
-      if ((!prior_bwd_edge[j] and bwd_neighbors[j] > 0) or
-          (!prior_fwd_edge[j] and fwd_neighbors[j] > 0)) {
-        new_fwd_edges.push_back(t);
-        // new_fwd_edges.push_back(t);
-      }
-    } else {
-      if (!prior_bwd_edge[j] and bwd_neighbors[j] > 0) {
-        new_bwd_edges.push_back(j);
-        // new_bwd_edges.push_back(t);
-      }
-      if (!prior_fwd_edge[j] and fwd_neighbors[j] > 0) {
-        new_fwd_edges.push_back(j);
-        // new_fwd_edges.push_back(t);
-      }
-    }
 		
 
+  for (auto j : model.nodes) {
+		
     target_bwd_edgecount[j] += bwd_neighbors[j];
     target_fwd_edgecount[j] += fwd_neighbors[j];
     if (j == t) {
@@ -673,43 +626,14 @@ void block_model<graph_struct>::move(const int v, const int t) {
     }
   }
 	
-	// if(new_bwd_edges.size() != nnew_bwd_edges.size())
-	// {
-	//
-	// 	std::cout << "\n n:";
-	// 	for(auto u : new_bwd_edges)
-	// 		std::cout << " " << u;
-	// 	std::cout << std::endl;
-	// 	std::cout << "nn:";
-	// 	for(auto u : nnew_bwd_edges)
-	// 		std::cout << " " << u;
-	// 	std::cout << std::endl;
-	// }
-	
-	//
-	// assert(new_fwd_edges.size() == nnew_fwd_edges.size());
-	// assert(new_bwd_edges.size() == nnew_bwd_edges.size());
-
   while (new_bwd_edges.size() > 0) {
-    // auto i{new_bwd_edges.back()};
-    // new_bwd_edges.pop_back();
     auto j{new_bwd_edges.back()};
     new_bwd_edges.pop_back();
-
-    // std::cout << "add " << j << "-(" << target_bwd_edgecount[j] << ")->" << i
-    //           << std::endl;
-
     model.add_edge(j, t, target_bwd_edgecount[j]);
   }
   while (new_fwd_edges.size() > 0) {
-    // auto i{new_fwd_edges.back()};
-    // new_fwd_edges.pop_back();
     auto j{new_fwd_edges.back()};
     new_fwd_edges.pop_back();
-
-    // std::cout << "add " << i << "-(" << target_fwd_edgecount[j] << ")->" << j
-    //           << std::endl;
-
     model.add_edge(t, j, target_fwd_edgecount[j]);
   }
 
@@ -741,7 +665,7 @@ void block_model<graph_struct>::move(const int v, const int t) {
 template <class graph_struct>
 void block_model<graph_struct>::store_best_move(const int v) {
 
-  best_move_delta[v] = 0;
+  best_move_delta[v] = static_cast<double>(N*N);
   double delta{0};
 
   auto o{block[v]};
@@ -800,14 +724,90 @@ if (opt.verbosity >= block::options::NORMAL)
 return nbits;
 }
 
+
 template <class graph_struct>
-void block_model<graph_struct>::compress(std::mt19937 &rng) {
+void block_model<graph_struct>::best_node(std::mt19937 &rng) {
 
   epsilon = opt.epsilon;
 
-  double nbits{get_objective()}, incr_nbits{nbits}, update, delta;
+  double nbits{0}, incr_nbits{0}, update, delta;
   if (opt.checked())
     incr_nbits = nbits = init_check_structs();
+	else
+		incr_nbits = nbits = get_objective();
+
+	std::vector<int> node;
+	for(auto v : data.nodes)
+		node.push_back(v);
+	std::shuffle(begin(node), end(node), rng);
+	
+  best_move_origin.clear();
+  auto current{0};
+	
+	int last_improvement{-1};
+	
+	while(last_improvement != current) {
+		auto v{node[current]};
+	
+		store_best_move(v);
+		//
+		// assert(model.nodes.contain(best_move_target[v]));
+		//
+		// assert(block[v] != best_move_target[v]);
+		//
+		//	
+		if (best_move_delta[v] < -epsilon)
+		{
+			auto delta{get_move_cost(v, best_move_target[v])};
+			
+      incr_nbits += delta;
+      if (opt.verbosity >= block::options::NORMAL)
+        std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " "
+                  << std::setw(10) << num_cost << " | " << std::setw(5)
+                  << model.size() << "/" << std::left << std::setw(4)
+                  << model.num_edges << std::right << " " << std::setw(8)
+                  << (int)incr_nbits << "  -- "
+                  << "move " << v << ": " << block[v]
+                  << " -> " << best_move_target[v] << " (" << delta;
+
+			last_improvement = current;
+			
+      move(v, best_move_target[v]);
+
+      if (opt.checked()) {
+        double pnbits{nbits};
+        nbits = get_objective(); // opt.alpha, opt.beta);
+        if (opt.verbosity >= block::options::NORMAL)
+          std::cout << "/" << (nbits - pnbits);
+        check(nbits, incr_nbits, opt.check_epsilon);
+      }
+
+      if (opt.verbosity >= block::options::NORMAL)
+        std::cout << ")" << std::endl;
+		}
+		
+		current = (current + 1) % node.size();
+	}
+	
+	
+
+}
+
+
+template <class graph_struct>
+void block_model<graph_struct>::compress(std::mt19937 &rng) {
+	
+	best_node(rng);
+
+	return;
+
+  epsilon = opt.epsilon;
+
+  double nbits{0}, incr_nbits{0}, update, delta;
+  if (opt.checked())
+    incr_nbits = nbits = init_check_structs();
+	else
+		incr_nbits = nbits = get_objective();
 
   intstack movable(data.capacity());
   movable.fill();
@@ -818,8 +818,6 @@ void block_model<graph_struct>::compress(std::mt19937 &rng) {
 
   best_move_origin.clear();
   auto first{0};
-
-  double threshold{0};
 
   while (true) {
     auto move_vertex{-1};
@@ -1063,22 +1061,6 @@ void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
 
   double delta, update;
 
-  //
-  //
-  // int square = model.size() * model.size();
-  // double bsize{static_cast<double>(square)};
-  // // double good_move{}
-  // std::cout << bsize << std::endl;
-  //
-  // // for(auto i{0}; i<stored; ++i) {
-  // // 	delta = get_move_cost(opt, best_move_origin[i],
-  // best_move_target[best_move_origin[i]]);
-  // //
-  // // 	// if(get_stored(i) < -epsilon)
-  // // 	// {
-  // // 	//
-  // // 	// }
-  // // }
 
   while (true) {
     bool moved;
@@ -1343,7 +1325,7 @@ double block_model<graph_struct>::get_objective() { // const double A, const dou
     }
 
     // error size
-    for (auto e : model[u]) {
+    for (auto e : model.successors[u]) {
       auto v{e.vertex};
       auto nedge{e.weight()};
       auto size{block_size[u] * block_size[v]};
@@ -1354,14 +1336,23 @@ double block_model<graph_struct>::get_objective() { // const double A, const dou
       double fnedge{static_cast<double>(nedge)};
       double fsize{static_cast<double>(size)};
       double density{fnedge / fsize};
+			
+			
 
       auto error_sz{// B *
-                    size * ((density - 1) * std::log2(1 - density) -
+                    fsize * ((density - 1) * std::log2(1 - density) -
                             density * std::log2(density))};
+										
+										
+										// if(u==1 and v==13)
+										// {
+										// 	std::cout << "HERE: " << density << " " << size << " => " << error_sz << std::endl;
+										// }
+										
       nbits += error_sz;
 
       if (opt.checked())
-        error_bits[u][v] += error_sz;
+        error_bits[u][v] = error_sz;
     }
   }
   // return 0;

@@ -3,10 +3,11 @@
 
 #include <vector>
 
-#include "timing.hpp"
 #include "global.hpp"
 #include "intstack.hpp"
 #include "options.hpp"
+#include "partition.hpp"
+#include "timing.hpp"
 
 namespace block
 {
@@ -35,25 +36,8 @@ double get_error(const int m, const int size) {
 double get_error_delta(const int mij, const int psize, const int nsize,
                        const int deltaij) {
 
-  // double delta{0};
-  //
-  // double dij = static_cast<double>(mij) / static_cast<double>(psize);
-  // if (mij > 0 and mij < psize)
-  //   delta -= static_cast<double>(psize) *
-  //            ((dij - 1.0) * std::log2(1.0 - dij) - dij * std::log2(dij));
-  //
-  // if (nsize > 0) {
-  //   double dpij =
-  //       static_cast<double>(mij + deltaij) / static_cast<double>(nsize);
-  //   if (mij + deltaij > 0 and mij + deltaij < nsize) {
-  //     delta += static_cast<double>(nsize) *
-  //              ((dpij - 1.0) * std::log2(1.0 - dpij) - dpij * std::log2(dpij));
-  //   }
-  // }
-
   auto delta{get_error(mij + deltaij, nsize)};
   delta -= get_error(mij, psize);
-  // assert(delta == alt);
 
   return delta;
 }
@@ -64,44 +48,47 @@ public:
   block_model(graph_struct &g, options &opt)
       : opt(opt), data(g), model(g), N{g.capacity()}, fwd_neighbors(N),
         bwd_neighbors(N), origin_fwd_edgecount(N), target_fwd_edgecount(N),
-        origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edges(N), prior_bwd_edges(N), block(N),
-        block_size(N, 1), best_move_origin(N), best_move_target(N, -1),
-        best_move_delta(N, 0), num_cost{0} {
+        origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edges(N),
+        prior_bwd_edges(N), best_move_target(N, -1), best_move_delta(N, 0), sample(N),
+        forbidden_move(N, -1), num_cost{0} {
 
-    for (int i{0}; i < g.capacity(); ++i)
-      best_move_origin[i] = i;
-
-    for (auto u : g.nodes)
-      block[u] = u;
+    bag.resize(N, N);
 		
+		sample.fill();
+
+    int i{0};
+    for (auto u : g.nodes) {
+      bag.add_elt(u, i++);
+    }
   }
 
   template <class block_struct>
   block_model(graph_struct &g, block_struct &blocks, options &opt)
       : opt(opt), data(g), N{blocks.size()}, fwd_neighbors(N), bwd_neighbors(N),
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
-        origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edges(N), prior_bwd_edges(N),
-        block(g.capacity()), block_size(N, 0), best_move_origin(g.capacity()),
-        best_move_target(g.capacity(), -1), best_move_delta(g.capacity(), 0),
-        num_cost{0} {
+        origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edges(N),
+        prior_bwd_edges(N), best_move_target(g.capacity(), -1),
+        best_move_delta(g.capacity(), 0), sample(N), forbidden_move(N, -1), num_cost{0} {
 
     model.initialise(N);
 
-    for (int i{0}; i < g.capacity(); ++i)
-      best_move_origin[i] = i;
+    bag.resize(g.capacity(), N);
+		
+		sample.fill();
 
+    int i{0};
     for (auto b{begin(blocks)}; b != end(blocks); ++b) {
-      block_size[b - begin(blocks)] = b->size();
       for (auto u{b->begin()}; u != b->end(); ++u) {
-        block[*u] = (b - begin(blocks));
+        bag.add_elt(*u, i);
       }
+      ++i;
     }
 
     for (auto b{begin(blocks)}; b != end(blocks); ++b) {
       std::fill(begin(fwd_neighbors), end(fwd_neighbors), 0);
       for (auto u{b->begin()}; u != b->end(); ++u) {
         for (auto e : g.successors[*u]) {
-          ++fwd_neighbors[block[e.endpoint()]];
+          ++fwd_neighbors[get_block(e.endpoint())];
         }
       }
 
@@ -116,9 +103,7 @@ public:
 
   void get_blocks(std::vector<std::vector<int>> &blocks);
 
-  void compress_old(std::mt19937 &rng);
   void compress(std::mt19937 &rng);
-	void best_node(std::mt19937 &rng);
 
   double
   get_move_cost(const int v,
@@ -147,14 +132,14 @@ private:
   std::vector<wtype> origin_bwd_edgecount;
   std::vector<wtype> target_bwd_edgecount;
 
-  // std::vector<bool> prior_fwd_edge;
-  // std::vector<bool> prior_bwd_edge;
-
   intstack prior_fwd_edges;
   intstack prior_bwd_edges;
 
-  std::vector<int> block;
-  std::vector<int> block_size;
+  partition bag;
+  inline int blocksize(const int b) { return bag[model.nodes.index(b)].size(); }
+  inline int get_block(const int u) { return model.nodes[bag.bag_of(u)]; }
+
+  void assign_block(const int v, const int b);
 
   std::vector<int> new_fwd_edges;
   std::vector<int> new_bwd_edges;
@@ -162,9 +147,13 @@ private:
   /********* BEST MOVE STUFF ***********/
   std::vector<int> best_move_origin;
   std::vector<int> best_move_target;
+  std::vector<int> forbidden_move;
   std::vector<double> best_move_delta;
 
   void store_best_move(const int v);
+	void sample_best_move(const int v, const int size, std::mt19937 &rng);
+	intstack sample;
+	
 
   /********* VERIFICATION STUFF ***********/
   // for the brute-force thing
@@ -190,7 +179,27 @@ void block_model<graph_struct>::get_blocks(
   blocks.clear();
   blocks.resize(model.size());
   for (auto x : data.nodes)
-    blocks[model.nodes.index(block[x])].push_back(x);
+    blocks[bag.bag_of(x)].push_back(x);
+  // blocks[model.nodes.index(block[x])].push_back(x);
+}
+
+template <class graph_struct>
+void block_model<graph_struct>::assign_block(const int v, const int t) {
+
+  auto o{get_block(v)};
+  auto oi{model.nodes.index(o)};
+  auto ti{model.nodes.index(t)};
+
+  // assert(bag.bag_of(v)==oi);
+  bag.move(v, ti);
+
+  if (blocksize(o) == 0) {
+    model.rem_node(o);
+    bag.remove_bag(oi);
+		sample.remove(o);
+  }
+
+  forbidden_move[v] = o;
 }
 
 template <class graph_struct>
@@ -200,18 +209,18 @@ double block_model<graph_struct>::get_merge_cost(const int o, const int t) {
 
   // + loop (ot) - loop o - loop t - arcs ot - arcs to
   double ijdelta{static_cast<double>(
-      (block_size[o] + block_size[t]) * (block_size[o] + block_size[t]) + 1)};
-  ijdelta -= static_cast<double>((block_size[o] * block_size[o]) + 1);
+      (blocksize(o) + blocksize(t)) * (blocksize(o) + blocksize(t)) + 1)};
+  ijdelta -= static_cast<double>((blocksize(o) * blocksize(o)) + 1);
   delta += ijdelta;
   if (opt.checked())
     bldlt_bits[o][o] = ijdelta;
 
-  ijdelta = -static_cast<double>((block_size[t] * block_size[t]) + 1);
+  ijdelta = -static_cast<double>((blocksize(t) * blocksize(t)) + 1);
   delta += ijdelta;
   if (opt.checked())
     bldlt_bits[t][t] = ijdelta;
 
-  ijdelta = -static_cast<double>((block_size[o] * block_size[t]) + 1);
+  ijdelta = -static_cast<double>((blocksize(o) * blocksize(t)) + 1);
   delta += 2 * ijdelta;
   if (opt.checked())
     bldlt_bits[o][t] = bldlt_bits[t][o] = ijdelta;
@@ -232,23 +241,21 @@ double block_model<graph_struct>::get_merge_cost(const int o, const int t) {
 
       // error on oo
       ijdelta = get_error(origin_fwd_edgecount[o] + origin_fwd_edgecount[t],
-                          (block_size[o] + block_size[t]) *
-                              (block_size[o] + block_size[t]));
-      -get_error(origin_fwd_edgecount[o], block_size[o] * block_size[o]);
+                          (blocksize(o) + blocksize(t)) *
+                              (blocksize(o) + blocksize(t)));
+      -get_error(origin_fwd_edgecount[o], blocksize(o) * blocksize(o));
       delta += ijdelta;
       if (opt.checked())
         erdlt_bits[o][o] = ijdelta;
 
       // error on ot
-      ijdelta -
-          get_error(origin_fwd_edgecount[t], block_size[o] * block_size[t]);
+      ijdelta - get_error(origin_fwd_edgecount[t], blocksize(o) * blocksize(t));
       delta += ijdelta;
       if (opt.checked())
         erdlt_bits[o][t] = ijdelta;
 
       // error on ot
-      ijdelta -
-          get_error(origin_bwd_edgecount[t], block_size[o] * block_size[t]);
+      ijdelta - get_error(origin_bwd_edgecount[t], blocksize(o) * blocksize(t));
       delta += ijdelta;
       if (opt.checked())
         erdlt_bits[t][o] = ijdelta;
@@ -257,68 +264,68 @@ double block_model<graph_struct>::get_merge_cost(const int o, const int t) {
 
       // error on tt
       ijdelta =
-          -get_error(target_fwd_edgecount[t], (block_size[t] * block_size[t]));
+          -get_error(target_fwd_edgecount[t], (blocksize(t) * blocksize(t)));
       delta += ijdelta;
       if (opt.checked())
         erdlt_bits[t][t] = ijdelta;
 
       // // error on ot [already counted]
-      // ijdelta = -get_error(target_fwd_edgecount[t], (block_size[t] *
-      // block_size[t]));
+      // ijdelta = -get_error(target_fwd_edgecount[t], (blocksize(t) *
+      // blocksize(t)));
       // 		 	delta += ijdelta;
       // 		 	if(opt.checked())
       // 		 		erdlt_bits[o][t] = ijdelta;
 
       // // error on to [already counted]
-      // ijdelta = -get_error(target_bwd_edgecount[t], (block_size[t] *
-      // block_size[t]));
+      // ijdelta = -get_error(target_bwd_edgecount[t], (blocksize(t) *
+      // blocksize(t)));
       // 		 	delta += ijdelta;
       // 		 	if(opt.checked())
       // 		 		erdlt_bits[t][o] = ijdelta;
 
     } else {
       // remove the edges jt and tj
-      ijdelta = static_cast<double>((block_size[j] * block_size[t]) + 1);
+      ijdelta = static_cast<double>((blocksize(j) * blocksize(t)) + 1);
       delta += 2 * ijdelta;
       if (opt.checked())
         bldlt_bits[j][t] = bldlt_bits[t][j] = ijdelta;
 
       // add the edges j(ot) and (ot)j remove the edges jo and oj
       ijdelta = (static_cast<double>(
-                     (block_size[j] * (block_size[o] + block_size[t])) + 1) -
-                 static_cast<double>((block_size[j] * block_size[o]) + 1));
+                     (blocksize(j) * (blocksize(o) + blocksize(t))) + 1) -
+                 static_cast<double>((blocksize(j) * blocksize(o)) + 1));
       delta += 2 * ijdelta;
       if (opt.checked())
         bldlt_bits[j][o] = bldlt_bits[o][j] = ijdelta;
 
       // error on oj
       ijdelta = get_error(origin_fwd_edgecount[j] + target_fwd_edgecount[j],
-                          (block_size[o] + block_size[t]) * block_size[j]);
-      -get_error(origin_fwd_edgecount[j], block_size[o] * block_size[j]);
+                          (blocksize(o) + blocksize(t)) * blocksize(j));
+      -get_error(origin_fwd_edgecount[j], blocksize(o) * blocksize(j));
       delta += ijdelta;
       if (opt.checked())
         erdlt_bits[o][j] = ijdelta;
 
       // error on tj
       ijdelta = get_error(target_fwd_edgecount[j] + target_fwd_edgecount[j],
-                          (block_size[o] + block_size[t]) * block_size[j]);
-      -get_error(target_fwd_edgecount[j], block_size[t] * block_size[j]);
+                          (blocksize(o) + blocksize(t)) * blocksize(j));
+      -get_error(target_fwd_edgecount[j], blocksize(t) * blocksize(j));
       delta += ijdelta;
       if (opt.checked())
         erdlt_bits[t][j] = ijdelta;
 
       // error on jo
       ijdelta = get_error(origin_bwd_edgecount[j] + target_bwd_edgecount[j],
-                          (block_size[o] + block_size[t]) * block_size[j]);
-      -get_error(origin_bwd_edgecount[j], block_size[o] * block_size[j]);
+                          (blocksize(o) + blocksize(t)) * blocksize(j));
+      -get_error(origin_bwd_edgecount[j], blocksize(o) * blocksize(j));
       delta += ijdelta;
       if (opt.checked())
         erdlt_bits[j][o] = ijdelta;
 
       // error on tj
       ijdelta = get_error(target_bwd_edgecount[j] + target_bwd_edgecount[j],
-                          (block_size[o] + block_size[t]) * block_size[j]);
-      -get_error(target_bwd_edgecount[j], block_size[t] * block_size[j]);
+                          (blocksize(o) + blocksize(t)) * blocksize(j));
+      -get_error(target_bwd_edgecount[j], blocksize(t) * blocksize(j));
       delta += ijdelta;
       if (opt.checked())
         erdlt_bits[j][t] = ijdelta;
@@ -327,8 +334,8 @@ double block_model<graph_struct>::get_merge_cost(const int o, const int t) {
 
   // // error on t -> t
   // err = // B *
-  //     get_error_delta(target_bwd_edgecount[t], block_size[t] * block_size[t],
-  //                     (block_size[t] + 1) * (block_size[t] + 1),
+  //     get_error_delta(target_bwd_edgecount[t], blocksize(t) * blocksize(t),
+  //                     (blocksize(t) + 1) * (blocksize(t) + 1),
   //                     bwd_neighbors[t] + fwd_neighbors[t]);
   // ijdelta += err;
   // if (opt.checked())
@@ -336,8 +343,8 @@ double block_model<graph_struct>::get_merge_cost(const int o, const int t) {
   //
   // // error on t -> o
   // err = // B *
-  //     get_error_delta(origin_bwd_edgecount[t], block_size[t] * block_size[o],
-  //                     (block_size[t] + 1) * (block_size[o] - 1),
+  //     get_error_delta(origin_bwd_edgecount[t], blocksize(t) * blocksize(o),
+  //                     (blocksize(t) + 1) * (blocksize(o) - 1),
   //                     fwd_neighbors[o] - bwd_neighbors[t]);
   // ijdelta += err;
   // if (opt.checked())
@@ -349,8 +356,8 @@ double block_model<graph_struct>::get_merge_cost(const int o, const int t) {
   //
   // // error on o -> t
   // err = // B *
-  //     get_error_delta(target_bwd_edgecount[o], block_size[t] * block_size[o],
-  //                     (block_size[t] + 1) * (block_size[o] - 1),
+  //     get_error_delta(target_bwd_edgecount[o], blocksize(t) * blocksize(o),
+  //                     (blocksize(t) + 1) * (blocksize(o) - 1),
   //                     bwd_neighbors[o] - fwd_neighbors[t]);
 
   //
@@ -382,15 +389,15 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 
   double delta{0}, ijdelta{0};
 
-  int o{block[v]};
+  int o{get_block(v)};
 
-	prior_fwd_edges.clear();
-	prior_bwd_edges.clear();
+  prior_fwd_edges.clear();
+  prior_bwd_edges.clear();
 
-
-	for(auto u : model.nodes)
-	{
-		fwd_neighbors[u] = bwd_neighbors[u] = origin_fwd_edgecount[u] = origin_bwd_edgecount[u] = target_fwd_edgecount[u] = target_bwd_edgecount[u] = 0;
+  for (auto u : model.nodes) {
+    fwd_neighbors[u] = bwd_neighbors[u] = origin_fwd_edgecount[u] =
+        origin_bwd_edgecount[u] = target_fwd_edgecount[u] =
+            target_bwd_edgecount[u] = 0;
 	}
 
   // std::fill(begin(fwd_neighbors), end(fwd_neighbors), 0);
@@ -424,17 +431,18 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 	
 	
   for (auto e : data.successors[v]) {
-		u = block[e.endpoint()];
-		if(!prior_fwd_edges.contain(u) and fwd_neighbors[u]==0) {
-			new_fwd_edges.push_back(u);
+    u = get_block(e.endpoint());
+    if (!prior_fwd_edges.contain(u) and fwd_neighbors[u] == 0) {
+      new_fwd_edges.push_back(u);
 		}
     ++fwd_neighbors[u];
   }
 
   for (auto e : data.predecessors[v]) {
-		u = block[e.endpoint()];
-		if(!prior_bwd_edges.contain(u) and bwd_neighbors[u]==0 and (u!=t or fwd_neighbors[u]==0)) {
-			new_bwd_edges.push_back(u);
+    u = get_block(e.endpoint());
+    if (!prior_bwd_edges.contain(u) and bwd_neighbors[u] == 0 and
+        (u != t or fwd_neighbors[u] == 0)) {
+      new_bwd_edges.push_back(u);
 		}
     ++bwd_neighbors[u];
   }
@@ -451,10 +459,10 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
   ijdelta = 0.0;
 
   // o.o
-  if (block_size[o] > 1)
+  if (blocksize(o) > 1)
     ojdelta += std::log2(
-        static_cast<double>((block_size[o] - 1) * (block_size[o] - 1) + 1));
-  ojdelta -= std::log2(static_cast<double>(block_size[o] * block_size[o] + 1));
+        static_cast<double>((blocksize(o) - 1) * (blocksize(o) - 1) + 1));
+  ojdelta -= std::log2(static_cast<double>(blocksize(o) * blocksize(o) + 1));
   // ojdelta *= A;
   if (opt.checked())
     bldlt_bits[o][o] += ojdelta;
@@ -462,17 +470,17 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
   // t.t
   // if (nsizet > 0)
   tjdelta += std::log2(
-      static_cast<double>((block_size[t] + 1) * (block_size[t] + 1) + 1));
-  tjdelta -= std::log2(static_cast<double>(block_size[t] * block_size[t] + 1));
+      static_cast<double>((blocksize(t) + 1) * (blocksize(t) + 1) + 1));
+  tjdelta -= std::log2(static_cast<double>(blocksize(t) * blocksize(t) + 1));
   // tjdelta *= A;
   if (opt.checked())
     bldlt_bits[t][t] += tjdelta;
 
   // o.t and t.o
-  if (block_size[o] > 1)
+  if (blocksize(o) > 1)
     ijdelta += std::log2(
-        static_cast<double>((block_size[o] - 1) * (block_size[t] + 1) + 1));
-  ijdelta -= std::log2(static_cast<double>(block_size[o] * block_size[t] + 1));
+        static_cast<double>((blocksize(o) - 1) * (blocksize(t) + 1) + 1));
+  ijdelta -= std::log2(static_cast<double>(blocksize(o) * blocksize(t) + 1));
   // ijdelta *= A;
   if (opt.checked()) {
     bldlt_bits[t][o] += ijdelta;
@@ -484,8 +492,8 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 
   // error on t -> t
   err = // B *
-      get_error_delta(target_bwd_edgecount[t], block_size[t] * block_size[t],
-                      (block_size[t] + 1) * (block_size[t] + 1),
+      get_error_delta(target_bwd_edgecount[t], blocksize(t) * blocksize(t),
+                      (blocksize(t) + 1) * (blocksize(t) + 1),
                       bwd_neighbors[t] + fwd_neighbors[t]);
   ijdelta += err;
   if (opt.checked())
@@ -493,8 +501,8 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 
   // error on t -> o
   err = // B *
-      get_error_delta(origin_bwd_edgecount[t], block_size[t] * block_size[o],
-                      (block_size[t] + 1) * (block_size[o] - 1),
+      get_error_delta(origin_bwd_edgecount[t], blocksize(t) * blocksize(o),
+                      (blocksize(t) + 1) * (blocksize(o) - 1),
                       fwd_neighbors[o] - bwd_neighbors[t]);
   ijdelta += err;
   if (opt.checked())
@@ -504,8 +512,8 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 
   // error_delta on o -> o
   err = // B *
-      get_error_delta(origin_bwd_edgecount[o], block_size[o] * block_size[o],
-                      (block_size[o] - 1) * (block_size[o] - 1),
+      get_error_delta(origin_bwd_edgecount[o], blocksize(o) * blocksize(o),
+                      (blocksize(o) - 1) * (blocksize(o) - 1),
                       -bwd_neighbors[o] - fwd_neighbors[o]);
   ijdelta += err;
   if (opt.checked())
@@ -513,8 +521,8 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 
   // error on o -> t
   err = // B *
-      get_error_delta(target_bwd_edgecount[o], block_size[t] * block_size[o],
-                      (block_size[t] + 1) * (block_size[o] - 1),
+      get_error_delta(target_bwd_edgecount[o], blocksize(t) * blocksize(o),
+                      (blocksize(t) + 1) * (blocksize(o) - 1),
                       bwd_neighbors[o] - fwd_neighbors[t]);
   ijdelta += err;
   if (opt.checked())
@@ -526,10 +534,10 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
   for (auto j : model.nodes)
     if (j != o and j != t) {
 
-      auto psizeo{block_size[o] * block_size[j]};
-      auto psizet{block_size[t] * block_size[j]};
-      auto nsizeo{(block_size[o] - 1) * block_size[j]};
-      auto nsizet{(block_size[t] + 1) * block_size[j]};
+      auto psizeo{blocksize(o) * blocksize(j)};
+      auto psizet{blocksize(t) * blocksize(j)};
+      auto nsizeo{(blocksize(o) - 1) * blocksize(j)};
+      auto nsizet{(blocksize(t) + 1) * blocksize(j)};
 
       ojdelta = 0.0;
       if (nsizeo > 0)
@@ -594,12 +602,9 @@ double block_model<graph_struct>::get_move_cost(const int v, const int t) {
 template <class graph_struct>
 void block_model<graph_struct>::move(const int v, const int t) {
 
-  auto o{block[v]};
-  block[v] = t;
+  auto o{get_block(v)};
 
-  ++block_size[t];
-  --block_size[o];
-		
+  assign_block(v, t);
 
   for (auto j : model.nodes) {
 		
@@ -645,9 +650,9 @@ void block_model<graph_struct>::move(const int v, const int t) {
     if (target_bwd_edgecount[e.endpoint()] != e.weight())
       model.set_weight(e.endpoint(), t, e, target_bwd_edgecount[e.endpoint()]);
 
-  if (block_size[o] == 0) {
+  if (blocksize(o) == 0) {
     // model.rename(o, model.nodes[model.size()-1]);
-    model.rem_node(o);
+    // model.rem_node(o);
   } else {
     for (auto e : model.successors[o])
       if (origin_fwd_edgecount[e.endpoint()] != e.weight())
@@ -668,15 +673,15 @@ void block_model<graph_struct>::store_best_move(const int v) {
   best_move_delta[v] = static_cast<double>(N*N);
   double delta{0};
 
-  auto o{block[v]};
+  auto o{get_block(v)};
 
   for (auto t : model.nodes) {
 
-    if (o != t) {
+    if (o != t and t != forbidden_move[v]) {
       delta = get_move_cost(v, t);
 
       if (opt.verbosity >= options::YACKING)
-        std::cout << "  probe move " << v << ": " << block[v] << " -> " << t
+        std::cout << "  probe move " << v << ": " << get_block(v) << " -> " << t
                   << " (" << delta;
 
       if (best_move_delta[v] > delta) {
@@ -691,6 +696,53 @@ void block_model<graph_struct>::store_best_move(const int v) {
         std::cout << ")\n";
     }
   }
+
+  if (opt.verbosity >= options::YACKING)
+    std::cout << " ==> " << best_move_target[v] << " (" << best_move_delta[v]
+              << ")\n";
+}
+
+// compute (brute force) the best move with u and store it
+template <class graph_struct>
+void block_model<graph_struct>::sample_best_move(const int v, const int size, std::mt19937 &rng) {
+
+  best_move_delta[v] = static_cast<double>(N*N);
+  double delta{0};
+
+  auto o{get_block(v)};
+	
+	for (auto i{0}; i<size; ++i)
+	{
+		auto j{rng() % (sample.size() - i)};
+		sample.move(sample[i+j], i);
+	}
+	
+	for (auto i{0}; i<size; ++i)
+	{
+		auto t{sample[i]};
+		if (o != t and t != forbidden_move[v]) {
+      delta = get_move_cost(v, t);
+
+      if (opt.verbosity >= options::YACKING)
+        std::cout << "  probe move " << v << ": " << get_block(v) << " -> " << t
+                  << " (" << delta;
+
+      if (best_move_delta[v] > delta) {
+        best_move_delta[v] = delta;
+        best_move_target[v] = t;
+
+        if (opt.verbosity >= options::YACKING)
+          std::cout << "*";
+      }
+
+      if (opt.verbosity >= options::YACKING)
+        std::cout << ")\n";
+		}
+	}
+
+  if (opt.verbosity >= options::YACKING)
+    std::cout << " ==> " << best_move_target[v] << " (" << best_move_delta[v]
+              << ")\n";
 }
 
 
@@ -724,11 +776,12 @@ if (opt.verbosity >= block::options::NORMAL)
 return nbits;
 }
 
-
 template <class graph_struct>
-void block_model<graph_struct>::best_node(std::mt19937 &rng) {
+void block_model<graph_struct>::compress(std::mt19937 &rng) {
 
   epsilon = opt.epsilon;
+
+  double mean_delta{0};
 
   double nbits{0}, incr_nbits{0}, update, delta;
   if (opt.checked())
@@ -742,36 +795,45 @@ void block_model<graph_struct>::best_node(std::mt19937 &rng) {
 	std::shuffle(begin(node), end(node), rng);
 	
   best_move_origin.clear();
-  auto current{0};
-	
-	int last_improvement{-1};
-	
-	while(last_improvement != current) {
-		auto v{node[current]};
-	
-		store_best_move(v);
-		//
-		// assert(model.nodes.contain(best_move_target[v]));
-		//
-		// assert(block[v] != best_move_target[v]);
-		//
-		//	
-		if (best_move_delta[v] < -epsilon)
-		{
-			auto delta{get_move_cost(v, best_move_target[v])};
-			
+  // auto current{0};
+
+  int iter{0}, last_improvement{-1};
+  double slack{10};
+
+  while (iter - last_improvement < 2 * node.size()) {
+    auto v{node[iter % node.size()]};
+
+		if(model.size() > 100)
+			sample_best_move(v, 100, rng);
+		else
+			store_best_move(v);
+
+    mean_delta += best_move_delta[v];
+    // std::cout << best_move_delta[v] << " " << (mean_delta / (iter+1)) <<
+    // std::endl;
+
+    if ((best_move_delta[v] < -epsilon) or
+        (best_move_delta[v] < slack and
+         (iter - last_improvement) >= node.size())) {
+      auto delta{get_move_cost(v, best_move_target[v])};
+
       incr_nbits += delta;
       if (opt.verbosity >= block::options::NORMAL)
-        std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " "
-                  << std::setw(10) << num_cost << " | " << std::setw(5)
+        std::cout << std::left << std::setw(7)
+                  << (2 * node.size() - iter + last_improvement) << " "
+                  << std::setw(9) << std::setprecision(4)
+                  << (mean_delta / (iter + 1)) << " " << std::setw(8)
+                  << std::setprecision(3) << cpuTime() << " " << std::setw(10)
+                  << num_cost << " | " << std::setw(5) << std::right
                   << model.size() << "/" << std::left << std::setw(4)
                   << model.num_edges << std::right << " " << std::setw(8)
                   << (int)incr_nbits << "  -- "
-                  << "move " << v << ": " << block[v]
-                  << " -> " << best_move_target[v] << " (" << delta;
+                  << "move " << v << ": " << get_block(v) << " -> "
+                  << best_move_target[v] << " (" << delta;
 
-			last_improvement = current;
-			
+      if (best_move_delta[v] < -epsilon)
+        last_improvement = iter;
+
       move(v, best_move_target[v]);
 
       if (opt.checked()) {
@@ -784,350 +846,15 @@ void block_model<graph_struct>::best_node(std::mt19937 &rng) {
 
       if (opt.verbosity >= block::options::NORMAL)
         std::cout << ")" << std::endl;
-		}
-		
-		current = (current + 1) % node.size();
-	}
-	
-	
-
-}
-
-
-template <class graph_struct>
-void block_model<graph_struct>::compress(std::mt19937 &rng) {
-	
-	best_node(rng);
-
-	return;
-
-  epsilon = opt.epsilon;
-
-  double nbits{0}, incr_nbits{0}, update, delta;
-  if (opt.checked())
-    incr_nbits = nbits = init_check_structs();
-	else
-		incr_nbits = nbits = get_objective();
-
-  intstack movable(data.capacity());
-  movable.fill();
-
-  if (opt.randomized()) {
-    movable.shuffle(rng);
-  }
-
-  best_move_origin.clear();
-  auto first{0};
-
-  while (true) {
-    auto move_vertex{-1};
-    auto move_target{-1};
-    // update = -epsilon;
-
-    // if(best_move_origin.empty())
-    // 	std::cout << "NO STORED MOVES\n";
-    // else
-    if (opt.verbosity >= options::YACKING)
-      std::cout << "PICK NEXT BEST STORED MOVE (AMONG "
-                << best_move_origin.size() << "): ";
-
-    // first go through the preferred moves and recompute them until
-    // for(auto v : best_move_origin)
-    while (first < best_move_origin.size()) {
-      auto v{best_move_origin[first]};
-      if (best_move_target[v] != block[v] and
-          model.nodes.contain(best_move_target[v])) {
-        delta = get_move_cost(v, best_move_target[v]);
-        if (delta < -epsilon) {
-          move_vertex = v;
-          move_target = best_move_target[v];
-          // update = delta;
-
-          if (opt.verbosity >= options::YACKING)
-            std::cout << move_vertex << " -?> " << move_target << "(" << delta
-                      << ")\n";
-          break;
-        }
-      }
-      ++first;
     }
 
-    // if no satisfying move was found, recompute the best move list
-    if (move_vertex < 0) {
-
-      if (opt.verbosity >= options::YACKING)
-        std::cout << "NONE FOUND\n";
-
-      best_move_origin.clear();
-      for (auto v : movable) {
-
-        store_best_move(v);
-
-        if (opt.verbosity >= options::YACKING)
-          std::cout << " - STORE BEST MOVE FOR " << v << ": "
-                    << best_move_delta[v] << std::endl;
-
-        if (best_move_delta[v] < -epsilon)
-          best_move_origin.push_back(v);
-      }
-
-      if (best_move_origin.empty())
-        break;
-
-      std::sort(begin(best_move_origin), end(best_move_origin),
-                [&](const int x, const int y) {
-                  return (best_move_delta[x] < best_move_delta[y]);
-                });
-
-      if (opt.verbosity >= options::YACKING)
-        std::cout << "SORT:\n";
-
-      if (opt.verbosity >= options::YACKING)
-        for (auto v : best_move_origin) {
-          std::cout << v << " -> " << best_move_target[v] << " ("
-                    << best_move_delta[v] << ")\n";
-        }
-
-      if (best_move_origin.size() > opt.batch)
-        best_move_origin.resize(opt.batch);
-      first = 0;
-
-    } else {
-      incr_nbits += delta;
-      if (opt.verbosity >= block::options::NORMAL)
-        std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " "
-                  << std::setw(10) << num_cost << " | " << std::setw(5)
-                  << model.size() << "/" << std::left << std::setw(4)
-                  << model.num_edges << std::right << " " << std::setw(8)
-                  << (int)incr_nbits << "  -- "
-                  << "move " << move_vertex << ": " << block[move_vertex]
-                  << " -> " << move_target << " (" << delta;
-
-      move(move_vertex, move_target);
-
-      if (opt.checked()) {
-        double pnbits{nbits};
-        nbits = get_objective(); // opt.alpha, opt.beta);
-        if (opt.verbosity >= block::options::NORMAL)
-          std::cout << "/" << (nbits - pnbits);
-        check(nbits, incr_nbits, opt.check_epsilon);
-
-        // std::cout << "CHECK OK\n" ;
-      }
-
-      if (opt.verbosity >= block::options::NORMAL)
-        std::cout << ")" << std::endl;
-    }
-  }
-}
-
-// template <class graph_struct>
-// void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
-//
-//   epsilon = opt.epsilon;
-//
-// double nbits{0}, incr_nbits{0};
-//   if (opt.checked())
-// 		incr_nbits = nbits = init_check_structs();
-//
-//
-//   intstack movable(data.capacity());
-//   movable.fill();
-//
-//   if (opt.randomized()) {
-//     movable.shuffle(rng);
-//   }
-//
-//   double delta, update;
-//
-// 	//
-// 	//
-// 	// int square = model.size() * model.size();
-// 	// double bsize{static_cast<double>(square)};
-// 	// // double good_move{}
-// 	// std::cout << bsize << std::endl;
-// 	//
-// 	// // for(auto i{0}; i<stored; ++i) {
-// 	// // 	delta = get_move_cost(opt, best_move_origin[i],
-// best_move_target[best_move_origin[i]]);
-// 	// //
-// 	// // 	// if(get_stored(i) < -epsilon)
-// 	// // 	// {
-// 	// // 	//
-// 	// // 	// }
-// 	// // }
-//
-//
-//   while (true) {
-//     bool moved;
-//     auto move_vertex{-1};
-//     auto move_target{-1};
-// 		update = -epsilon;
-//
-//     // try to find a move of negative cost
-//     for (auto v : movable) {
-//
-//       moved = false;
-//       for (auto t : model.nodes) {
-//         auto o{block[v]};
-//         if (o != t) {
-//           delta = get_move_cost(v, t);
-//
-// 	        // std::cout << "  probe move " << v << ": " << block[v]
-// 	        //           << " -> " << t << " (" << delta;
-// 	        //
-// 					// if (best_move_delta[v] > delta)
-// 					// {
-// 					// 	best_move_delta[v] = delta;
-// 					// 	best_move_target[v] = t;
-// 					// }
-// 					//
-//
-//           if (delta < update) {
-//             move_vertex = v;
-//             move_target = t;
-//             update = delta;
-//
-// 						// std::cout << "*";
-//
-//             if (opt.policy == block::options::FIRST) {
-// 							moved = true;
-//               break;
-// 							// std::cout << ")\n";
-// 						}
-//           }
-//
-// 					// std::cout << ")\n";
-//         }
-//       }
-//
-// 			// exit(1);
-//
-//       if (moved)
-//         break;
-//     }
-//
-//     if (move_vertex < 0)
-//       break;
-//     else {
-// 			if (opt.policy == block::options::BEST)
-// 				update = get_move_cost(move_vertex,
-// move_target);
-//
-//       incr_nbits += update;
-//       if (opt.verbosity >= block::options::NORMAL)
-//         std::cout << std::setw(4) << model.size() << " " << std::setw(4)
-//                   << model.num_edges << " "
-//                   << "move " << move_vertex << ": " << block[move_vertex]
-//                   << " -> " << move_target << " (" << update;
-//
-//       move(move_vertex, move_target);
-//       if (opt.stable)
-//         movable.remove(move_target);
-//
-//       if (opt.checked()) {
-//         double pnbits{nbits};
-//         nbits = get_objective(); // opt.alpha, opt.beta);
-//         if (opt.verbosity >= block::options::NORMAL)
-//           std::cout << "/" << (nbits - pnbits);
-//       }
-//       if (opt.verbosity >= block::options::NORMAL)
-//         std::cout << ")" << std::endl;
-//       if (opt.checked())
-//         check(nbits, incr_nbits, opt.check_epsilon);
-//     }
-//
-// 		// exit(1);
-//   }
-// }
-
-template <class graph_struct>
-void block_model<graph_struct>::compress_old(std::mt19937 &rng) {
-
-  epsilon = opt.epsilon;
-
-  double nbits{0}, incr_nbits{0};
-  if (opt.checked())
-    incr_nbits = nbits = init_check_structs();
-  else
-    incr_nbits = nbits = get_objective();
-
-  intstack movable(data.capacity());
-  movable.fill();
-
-  if (opt.randomized()) {
-    movable.shuffle(rng);
+    ++iter;
   }
 
-  double delta, update;
-
-
-  while (true) {
-    bool moved;
-    auto move_vertex{-1};
-    auto move_target{-1};
-    update = -epsilon;
-
-    // try to find a move of negative cost
-    for (auto v : movable) {
-
-      moved = false;
-      for (auto t : model.nodes) {
-        auto o{block[v]};
-        if (o != t) {
-          delta = get_move_cost(v, t);
-
-          if (delta < update) {
-            move_vertex = v;
-            move_target = t;
-            update = delta;
-
-            if (opt.policy == block::options::FIRST) {
-              moved = true;
-              break;
-            }
-          }
-        }
-      }
-
-      if (moved)
-        break;
-    }
-
-    if (move_vertex < 0)
-      break;
-    else {
-      if (opt.policy == block::options::BEST)
-        update = get_move_cost(move_vertex, move_target);
-
-      incr_nbits += update;
-      if (opt.verbosity >= block::options::NORMAL)
-        std::cout << std::setw(8) << std::setprecision(3) << cpuTime() << " "
-                  << std::setw(10) << num_cost << " | " << std::setw(5)
-                  << model.size() << "/" << std::left << std::setw(4)
-                  << model.num_edges << std::right << " " << std::setw(8)
-                  << std::setprecision(3) << incr_nbits << " -- "
-                  << "move " << move_vertex << ": " << block[move_vertex]
-                  << " -> " << move_target << " (" << update;
-
-      move(move_vertex, move_target);
-      if (opt.stable)
-        movable.remove(move_target);
-
-      if (opt.checked()) {
-        double pnbits{nbits};
-        nbits = get_objective(); // opt.alpha, opt.beta);
-        if (opt.verbosity >= block::options::NORMAL)
-          std::cout << "/" << (nbits - pnbits);
-        check(nbits, incr_nbits, opt.check_epsilon);
-      }
-
-      if (opt.verbosity >= block::options::NORMAL)
-        std::cout << ")" << std::endl;
-    }
-
-    // exit(1);
-  }
+  // std::fill(begin(forbidden_move), end(forbidden_move), -1)
+  // {
+  //
+  // }
 }
 
 /*************** VERIFICATION STUFF ******************/
@@ -1143,10 +870,10 @@ void block_model<graph_struct>::check(double nbits, double incr_nbits,
   util.clear();
   util.resize(n, 0);
   for (auto v : data.nodes) {
-    ++util[block[v]];
+    ++util[get_block(v)];
   }
   for (auto u : model.nodes) {
-    assert(block_size[u] == util[u]);
+    assert(blocksize(u) == util[u]);
   }
 
   // check edge count
@@ -1154,10 +881,13 @@ void block_model<graph_struct>::check(double nbits, double incr_nbits,
   util.clear();
   util.resize(m * m, 0);
   for (auto u : data.nodes) {
-    auto i{model.nodes.index(block[u])};
+    auto i{bag.bag_of(u)}; // model.nodes.index(block[u])};
+    // assert(i == bag.bag_of(u));
 
     for (auto e : data[u]) {
-      auto j{model.nodes.index(block[e.endpoint()])};
+      auto j{
+          bag.bag_of(e.endpoint())}; // model.nodes.index(block[e.endpoint()])};
+      // assert(j==bag.bag_of(e.endpoint()));
       ++util[i * m + j];
     }
   }
@@ -1310,11 +1040,11 @@ double block_model<graph_struct>::get_objective() { // const double A, const dou
 
     for (auto v : model.nodes) {
 
-      assert((block_size[u] * block_size[v]) > 0);
+      assert((blocksize(u) * blocksize(v)) > 0);
 
       auto block_sz{
           // A *
-          std::log2(static_cast<double>(block_size[u] * block_size[v] + 1))};
+          std::log2(static_cast<double>(blocksize(u) * blocksize(v) + 1))};
 
       nbits += block_sz;
 
@@ -1328,7 +1058,7 @@ double block_model<graph_struct>::get_objective() { // const double A, const dou
     for (auto e : model.successors[u]) {
       auto v{e.vertex};
       auto nedge{e.weight()};
-      auto size{block_size[u] * block_size[v]};
+      auto size{blocksize(u) * blocksize(v)};
 
       if (nedge == 0 or nedge == size)
         continue;

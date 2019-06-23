@@ -32,12 +32,17 @@ void partition::add_elt(const int elt, const int to) {
   bag_[elt] = to;
   bag[to].push_back(elt);
 }
-inline int partition::bag_of(const int elt) { return bag_[elt]; }
+int partition::bag_of(const int elt) { return bag_[elt]; }
+bool partition::contain(const int elt, const int a) {
+  return index_[elt] < bag[a].size();
+}
 void partition::swap_bag(const int a, const int b) {
   std::swap(bag[a], bag[b]);
 }
 void partition::remove_bag(const int a) {
   swap_bag(a, static_cast<int>(bag.size()) - 1);
+  for (auto x : bag[a])
+    bag_[x] = a;
   bag.pop_back();
 }
 //@}

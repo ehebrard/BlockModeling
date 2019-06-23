@@ -157,18 +157,28 @@ void intstack::pull(const int elt)
     index_[elt] = size_;
 }
 
-void intstack::move_up(const int elt, const int idx_to)
+void intstack::move(const int elt, const int idx_to)
 {
     auto idx_from = index_[elt];
-
-    assert(index_[elt] <= static_cast<size_t>(idx_to));
-
     auto last = list_[idx_to];
     index_[last] = idx_from;
     list_[idx_from] = last;
     list_[idx_to] = elt;
     index_[elt] = idx_to;
 }
+
+// void intstack::move_up(const int elt, const int idx_to)
+// {
+//     auto idx_from = index_[elt];
+//
+//     assert(index_[elt] <= static_cast<size_t>(idx_to));
+//
+//     auto last = list_[idx_to];
+//     index_[last] = idx_from;
+//     list_[idx_from] = last;
+//     list_[idx_to] = elt;
+//     index_[elt] = idx_to;
+// }
 
 void intstack::pop_back() { --size_; }
 void intstack::pop_head() { remove(list_[0]); }

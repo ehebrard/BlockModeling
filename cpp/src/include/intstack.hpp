@@ -82,7 +82,7 @@ public:
 
     void resize(const size_t n);
 
-    void move_up(const int elt, const int idx);
+    void move(const int elt, const int idx);
 
     void pop_back();
 

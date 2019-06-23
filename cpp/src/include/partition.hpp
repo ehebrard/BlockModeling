@@ -44,7 +44,7 @@ public:
   void swap_bag(const int a, const int b);
   void remove_bag(const int a);
   int bag_of(const int elt);
-  // bool contain(const int elt, const int c);
+  bool contain(const int elt, const int a);
   //@}
 
   /*!@name Miscellaneous*/

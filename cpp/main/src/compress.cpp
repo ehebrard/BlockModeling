@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
   double read_time{cpuTime()};
 
   // if (options.printgraph)
-    std::cout << g << std::endl;
+  // std::cout << g << std::endl;
 
   std::vector<std::vector<int>> blocks;
 

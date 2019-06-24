@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
   if (options.size > 0) {
     intstack nodes(g.capacity());
     nodes.fill();
-    auto k{options.size};
+    auto k{std::min(static_cast<size_t>(options.size), nodes.size())};
     auto bi{0};
     blocks.resize(k);
     while (!nodes.empty()) {

@@ -68,7 +68,7 @@ public:
         origin_fwd_edgecount(N), target_fwd_edgecount(N),
         origin_bwd_edgecount(N), target_bwd_edgecount(N), prior_fwd_edges(N),
         prior_bwd_edges(N), best_move_target(g.capacity(), -1),
-        best_move_delta(g.capacity(), 0), sample(N), forbidden_move(N, -1), num_cost{0} {
+        best_move_delta(g.capacity(), 0), sample(N), forbidden_move(g.capacity(), -1), num_cost{0} {
 
     model.initialise(N);
 
